@@ -37,8 +37,8 @@ has an interface and capabilities similar to those available in Matlab.
 The plots are handled by a separate thread so you can write your programs
 just like you are were used to in Matlab. The plotting capability is used in
 the visual module that enables the programmer to visualize the simulation
-results after or even during the optimization run. 
+results after or even during the optimization run.
 """
 
-from misc.id import revision, locationID 
-print("pyOpus library R%d @ %s, (c)2008-2011 Arpad Buermen" % (revision, locationID))
+from misc.id import revision, locationID
+#print("pyOpus library R%d @ %s, (c)2008-2011 Arpad Buermen" % (revision, locationID))
