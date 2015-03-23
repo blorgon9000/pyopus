@@ -1,0 +1,21 @@
+This is a tutorial on the usage of the PVM interface. 
+
+Study it in the order in which the files are numbered. 
+
+Before you run the examples, edit the hosts.pvm file and change the
+username, home directory, path to the python interpreter, and host list.
+Then start the pvm system by typing
+
+  pvm hosts.pvm
+
+Now you can run the examples. To run the first example type: 
+
+  python 01-config.py
+
+To shut down the pvm system, enter the pvm console by typing 
+
+  pvm
+
+and enter
+
+  halt

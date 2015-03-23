@@ -1,0 +1,157 @@
+Authors
+=======
+Arpad Buermen
+
+parts of the code contributed by 
+
+Janez Puhan (HSPICE file interface)
+Jernej Olensek (global optimization test problems)
+Gregor Cijan (cost collector and point generators)
+
+
+Credits 
+=======
+PyOpus uses code from the following packages
+- PyPVM by W. Michael Petullo and Gregory D. Baker
+- wxMpl by Ken McIvor
+
+See src/*.zip and src/*.tar.gz for details on respective licenses. 
+
+
+What platforms was PyOPUS tested on? 
+====================================
+Windows binary tested under Windows 7 (64-bit)
+  - Python 2.6.4 (32-bit)
+  - wxPython 2.8 (32-bit)
+  - MatPlotLib 0.99.1 (32-bit)
+  - NumPy 1.3.0 (32-bit)
+  - SciPy 0.7.1 (32-bit)
+
+Linux binary tested under Debian Squeeze (64-bit)
+  - Python 2.6.6
+  - wxPython 2.8.10.1 (gtk2-unicode)
+  - MatPlotLib 0.99.3
+  - NumPy 1.4.1
+  - SciPy 0.7.2
+  - PVM 3.4.5
+
+Building the Windows version tested with 
+  - 32-bit Python only 
+  - Compiler from Visual Studio 2008 
+  
+Building the Linux version requires PVM libraries to be installed on the 
+system. It was tested with 
+  - gcc 4.4
+	
+Windows specifics:
+  - PVM is not supported
+
+
+Using distutils: 
+================
+- To build PyOPUS
+
+	python setup.py build
+	
+  The library is built under build/lib.*/pyopus/
+  The objetc files for extensions are built under build/temp.*/
+  
+- There are several ways how to install the library after a successfull build 
+
+  1. Default location 
+  
+		python setup.py install
+
+     installs under default install prefix in folder
+  
+		/usr/local/lib/python2.6/dist-packages/pyopus	
+  
+     You will have to add /usr/local/lib/python2.6/dist-packages to your 
+     PYTHONPATH. 
+  
+  2. To install in a different install prefix use for instance 
+  
+		python setup.py install --prefix /home/arpadb/pfx
+
+     which places the files under
+  
+		/home/arpadb/pfx/lib/python2.6/site-packages/pyopus/
+
+     In this case you must add /home/arpadb/pfx/lib/python2.6/site-packages to 
+     your PYTHONPATH. 
+  
+  3. By running setup.py with --install-lib option 
+  
+		python setup.py install --install-lib /home/arpadb/pfx
+	
+     the files are installed under
+  
+		/home/arpadb/pfx/pyopus/
+  
+     so you have to add /home/arpadb/pfx to your PYTHONPATH. 
+  
+  
+- To build a dumb distribution (.tar.gz) for Linux or Windows
+
+	python setup.py bdist_dumb --format=gztar
+
+  The package is created in dist/ with name PyOPUS*.tar.gz
+  
+  To build a .zip file
+  
+	python setup.py bdist_dumb --format=zip
+
+  The package is created in dist/ with name PyOPUS*.zip
+  
+  Under Linux the contents are prefixed with the following path
+  
+    ./usr/local/lib/python2.6/dist-packages/pyopus
+
+  Under Windows the prefix is
+  
+	Python26\Lib\site-packages\pyopus
+
+- To build a Windows installer distribution
+
+	python setup.py bdist --format=wininst
+  
+  The package is created in dist/ with name PyOPUS*.exe
+  	
+- To build a source distribution 
+
+	python setup.py sdist --format=gztar
+  
+  or (for .zip format)
+
+	python setup.py sdist --format=zip
+	
+
+	
+Building documentation
+======================
+Documentation is built from the docstrings and the .rst files in docsrc/
+
+You first need a working PyOPUS installation and a working Python Sphinx 
+installation. A Makefile is available in docsrc/. 
+
+To build the .html docomentation go to docsrc/ and type
+
+	make clean
+	make html
+	
+The documentation will be built in docsrc/_build/html with index.html as the 
+main document and entry point. 
+
+Do not build the documentation under Windows because the documentation of the 
+PVM based modules will not be built (Python can't import the parallel.pvm 
+module because Windows version of PyOPUS does not support PVM). 
+
+
+Tips
+====
+1. If multiprocessing module fails to work, check if /dev/shm is mounted. 
+   Mount with
+
+     mount tmpfs /dev/shm -t tmpfs
+	 
+	 

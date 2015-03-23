@@ -1,0 +1,7 @@
+This is a tutorial that teaches you how to use simulator interface objects and 
+how to create performance evaluation chains from a PerformanceEvaluator object 
+to the CostEvaluator object. It also shows how one uses various Optimizers 
+(local and parallel) and how the performance evaluation results can be 
+visualized before, during, and after optimization. 
+
+Study the examples starting with the folder numbered 01. 
