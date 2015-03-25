@@ -1,28 +1,50 @@
 #!/usr/bin/env python
 
-import pyopus.simulator.hspicefile as hf
-# import matplotlib.pyplot as plt
+
+import pytest
+
+from itertools import izip
+
+# @pytest.mark.parametrize("ext",
+#     ['tr0','sw0','ac0']
+#     )
+
+@pytest.fixture(scope="module",
+        params=['tr0','sw0','ac0'])
+def hspfs(request):
+    import pyopus.simulator.hspicefile as hf
+
+    objs = []
+    for ver in ('9601','2001'):
+        filename = '{}.{}'.format(ver,request.param)
+        objs.append(hf.hspice_read(filename, debug=0)[0])
+
+    return objs
 
 
-for _f,_s in (
-        ('9601.tr0','+'),
-        ('2001.tr0','x'),
-        ):
-    hspf = hf.hspice_read(_f, debug=1)
 
-    for _x in (1, 3, 4):
-        print hspf[0][_x]
+def test_scale_name(hspfs):
+    assert hspfs[0][1] == hspfs[1][1]
 
-    results = hspf[0][0][2][0]
-    scale = results[hspf[0][1]]
+def test_title_string(hspfs):
+    assert hspfs[0][3] == hspfs[1][3]
 
+def test_sweep_name(hspfs):
+    assert hspfs[0][0][0] == hspfs[1][0][0]
 
+def test_sweep_params(hspfs):
+    assert hspfs[0][0][1] == hspfs[1][0][1]
 
-    print 'len(scale)=',len(scale)
-    for _i in (0,1,-2,-1):
-        print 'scale[{}]='.format(_i),scale[_i]
+def test_result_names(hspfs):
+    for a, b in izip(hspfs[0][0][2], hspfs[1][0][2]):
+        assert a.keys() == b.keys()
 
-    print '-'*79
+def test_result_values(hspfs):
+    from numpy import allclose
+    for a, b in izip(hspfs[0][0][2], hspfs[1][0][2]):
+        for k in a:
+            assert k in b
+            vala=a[k]
+            valb=b[k]
+            assert allclose(vala,valb)
 
-    # plt.plot(scale,results['nout1'],_s)
-# plt.show()

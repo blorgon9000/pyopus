@@ -1,0 +1,5 @@
+*test sim
+
+.INC "netlist.spi"
+.OPTION POST_VERSION=2001
+.END
