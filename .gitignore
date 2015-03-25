@@ -1,1 +1,6 @@
 /build/
+/test/run
+/test/*.lis
+/test/*.st0
+__pycache__
+
