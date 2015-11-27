@@ -19,23 +19,23 @@ else:
 	f2clib=["f2c"]
 	cxxlib=["stdc++"]
 
-	# Get rid of warnings and other options
-	cfg_vars = distutils.sysconfig.get_config_vars()
-	for key, value in cfg_vars.items():
-		if type(value) == str:
-			processedValue = value
+	# # Get rid of warnings and other options
+	# cfg_vars = distutils.sysconfig.get_config_vars()
+	# for key, value in cfg_vars.items():
+	# 	if type(value) == str:
+	# 		processedValue = value
 
-			processedValue = processedValue.replace("-Wstrict-prototypes", "")
-			processedValue = processedValue.replace("-Wall", "")
-			processedValue = processedValue.replace("-Werror=format-security", "")
-			processedValue = processedValue.replace("-Wformat", "")
-			processedValue = processedValue.replace("-Wunused-result", "")
-			processedValue = processedValue.replace("-D_FORTIFY_SOURCE=2", "")
+	# 		processedValue = processedValue.replace("-Wstrict-prototypes", "")
+	# 		processedValue = processedValue.replace("-Wall", "")
+	# 		processedValue = processedValue.replace("-Werror=format-security", "")
+	# 		processedValue = processedValue.replace("-Wformat", "")
+	# 		processedValue = processedValue.replace("-Wunused-result", "")
+	# 		processedValue = processedValue.replace("-D_FORTIFY_SOURCE=2", "")
 
-			cfg_vars[key] = processedValue
+	# 		cfg_vars[key] = processedValue
 
-			#if value!=processedValue:
-			#	print key, ":", value
+	# 		#if value!=processedValue:
+	# 		#	print key, ":", value
 
 
 # Build libf2c
