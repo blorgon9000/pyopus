@@ -1,9 +1,0 @@
-This folder shows you how to use various optimizers. 
-
-Some more complex exampels have their own subfolders. 
-
-The order in which you study these examples is not important. 
-
-Some examples demonstrate parallel algorithms in a parallel environment 
-(PVM). Before you run them you must start the pvm system. Look at the
-examples in the parallel/pvm section of demos. 

@@ -1,9 +1,11 @@
-# Cost evaluation module
 """
 .. inheritance-diagram:: pyopus.evaluator.cost
     :parts: 1
 	
 **Cost function management module (PyOPUS subsystem name: CE)**
+
+WARNING - This is an obsolete module kept for compatibility reasons. 
+It will be removed in the next release. 
 
 **Normalization** is the process where a performance measure is scaled in such 
 way that values not satifying the goal result in normalized values smaller than 
@@ -58,16 +60,17 @@ A **parameter vector** is a list of parameter values where the values are
 ordered according to a given **ordering of input parameters**. 
 """
 
-from ..optimizer.base import Reporter, Stopper, Plugin
+from ..optimizer.base import Reporter, Stopper, Plugin, Annotator
 from ..misc.debug import DbgMsgOut, DbgMsg
+from auxfunc import paramList, paramDict
 from numpy import concatenate, array, ndarray, where, zeros, sum, abs
 import sys
 
-__all__ = [ 'formatParameters', 'parameterDictionary', 'parameterVector', 'parameterSetup', 
+__all__ = [ 'formatParameters', 'parameterSetup', 
 	'MNbase', 'MNabove', 'MNbelow', 'CSlinear2', 'CCbase', 'CCexcluded', 'CCworst', 'CCmean', 
 	'CostEvaluator', 'CostAnnotator', 'CostCollector', 'ReportCostCorners' ] 
 
-import pdb
+DbgMsgOut("CE", "This module is obsolete. Use pyopus.performance.aggregate.")
 
 def formatParameters(param, inputOrder=None, nParamName=15, nNumber=15, nSig=6):
 	"""
@@ -109,6 +112,8 @@ def parameterVector(inputOrder, paramDict):
 	"""
 	Return a list of parameter values in order *inputOrder* corresponding to 
 	*paramDict* parameter dictionary. 
+	
+	Obsolete
 	"""
 	x=[]
 	for paramName in inputOrder: 
@@ -121,6 +126,8 @@ def parameterSetup(inputOrder, costInput):
 	of initial, low, high, and stepvalues for every parameter. Parameter order 
 	is given by the *inputOrder* while the values are taken from the cost 
 	function input description given by *costInput*. 
+	
+	This function is obsolete. use :func:`vectparamDesc` as replacement. 
 	"""
 	initVec=[]
 	loVec=[]
@@ -133,7 +140,6 @@ def parameterSetup(inputOrder, costInput):
 		stepVec.append(costInput[paramName]['step'])
 	
 	return (initVec, loVec, hiVec, stepVec)
-	
 
 # Basic normalization class	
 class MNbase(object):
@@ -152,8 +158,8 @@ class MNbase(object):
 	call is ``None``, the return value is equal to *failure*. 
 	
 	If *norm* is not given the default normalization is used which is equal to 
-	*goal*/10 or 1.0 if *goal* is equal to 0.0. If *goal* is a vector, *norm* 
-	must either be a vector of the same size or a scalar is which case it 
+	*goal* or 1.0 if *goal* is equal to 0.0. If *goal* is a vector, *norm* 
+	must either be a vector of the same size or a scalar in which case it 
 	applies to all components of the *goal*. 
 	"""
 	def __init__(self, goal, norm=None, failure=10000.0):
@@ -161,11 +167,11 @@ class MNbase(object):
 
 		if norm is None:
 			if self.goal.size==1:
-				self.norm=abs(self.goal)/10.0
+				self.norm=abs(self.goal) #/10.0
 				if self.norm==0:
 					self.norm=1.0
 			else:
-				self.norm=abs(self.goal)/10.0
+				self.norm=abs(self.goal) #/10.0
 				self.norm[where(self.norm==0.0)]=1.0
 		else:
 			self.norm=norm
@@ -337,11 +343,11 @@ class MNbetween(MNbase):
 			
 		if norm is None:
 			if self.goal.size==1:
-				self.norm=abs(self.goalHigh-self.goal)/10.0
+				self.norm=abs(self.goalHigh-self.goal) # /10.0
 				if self.norm==0:
 					self.norm=1.0
 			else:
-				self.norm=abs(self.goalHigh-self.goal)/10.0
+				self.norm=abs(self.goalHigh-self.goal) # /10.0
 				self.norm[where(self.norm==0.0)]=1.0
 		else:
 			self.norm=norm
@@ -713,13 +719,14 @@ class CostEvaluator:
 		self.paramVector=paramVector
 		
 		# Create parameter dictionary
-		params=parameterDictionary(self.inputOrder, paramVector)
+		# params=parameterDictionary(self.inputOrder, paramVector)
+		params=paramDict(paramVector, self.inputOrder)
 		
 		if self.debug:
 			DbgMsgOut("CE", "  Evaluating measures.")
 		
 		# Evaluate performance
-		performances=self.perfEval(params)
+		performances, anCount = self.perfEval(params)
 		
 		if self.debug:
 			DbgMsgOut("CE", "  Processing")
@@ -973,7 +980,8 @@ class CostEvaluator:
 		else:
 			paramVec=x
 			
-		return formatParameters(parameterDictionary(self.inputOrder, paramVec), self.inputOrder, nParamName, nNumber, nSig)
+		# return formatParameters(parameterDictionary(self.inputOrder, paramVec), self.inputOrder, nParamName, nNumber, nSig)
+		return formatParameters(paramDict(paramVec, self.inputOrder), self.inputOrder, nParamName, nNumber, nSig)
 	
 	# Return annotator plugin. 
 	def getAnnotator(self):
@@ -1018,119 +1026,107 @@ class CostEvaluator:
 		invoked and prints the details of the cost function components. 
 		"""
 		return ReportCostCorners(self, reportParameters)
+
+
+# Default annotator for cost evaluator
+class CostAnnotator(Annotator):
+	"""
+	A subclass of the :class:`~pyopus.optimizer.base.Plugin` iterative 
+	algorithm plugin class. This is a callable object whose job is to
+	
+	* produce an annotation (details of the aggregate function value) stored 
+	  in the *aggregator* object
+	* update the *aggregator* object with the given annotation 
+	
+	Annotation is a copy of the :attr:`results` member of *aggregator*. 
+	
+	Annotators are used for propagating the details of the aggregate function 
+	from the machine where the evaluation takes place to the machine where the 
+	evaluation was requested (usually the master). 
+	"""
+	def __init__(self, ce):
+		self.ce=ce
+	
+	def produce(self):
+		return self.ce.results
+	
+	def consume(self, annotation):
+		self.ce.results=annotation
 		
 		
 # Stopper that stops the algorithm when all requirements are satisfied
-class StopWhenAllSatisfied(Stopper):		
+class StopWhenAllSatisfied(Stopper, CostAnnotator):		
 	"""
 	A subclass of the :class:`~pyopus.optimizer.base.Stopper` iterative 
 	algorithm plugin class that stops the algorithm when the 
-	:meth:`CostEvaluator.allBelowOrAtZero` method of the *costEvaluator* object 
-	returns ``True``. 
+	:meth:`CostEvaluator.allBelowOrAtZero` method of the *CostEvaluator* 
+	object returns ``True``. 
+	
+	This class is also an annotator that collects the results at remote 
+	evaluation and copies them to the host where the remote evaluation was 
+	requested. 
 	"""
-	def __init__(self, costEvaluator): 
+	def __init__(self, ce): 
 		Stopper.__init__(self)
+		CostAnnotator.__init__(self, ce)
+		self.ce=ce
 		
-		self.costEvaluator=costEvaluator
-		
-	def __call__(self, x, f, opt, annotation=None): 
-		if annotation is None: 
-			opt.stop=opt.stop or self.costEvaluator.allBelowOrAtZero()
-		else:
-			opt.stop=opt.stop or annotation
-		
-		return opt.stop
+	def __call__(self, x, f, opt): 
+		opt.stop=opt.stop or self.ce.allBelowOrAtZero()
 
 		
 # Reporter for reporting the results of cost evaluation
 # Reports details of every best-yet cf improvement
 # One report per iterSpacing iterations without best-yet cf improvement
-class ReportCostCorners(Reporter):
+class ReportCostCorners(Reporter, CostAnnotator):
 	"""
 	A subclass of the :class:`~pyopus.optimizer.base.Reporter` iterative 
-	algorithm plugin class that reports the details of the last evaluated cost 
-	function value obtained by the *costEvaluator* object. Uses the 
-	:meth:`CostEvaluator.reportParameters` and 
-	:meth:`CostEvaluator.formatResults` methods of *costEvaluator* for 
-	obtaining the output that is printed at first iteration and every time the 
-	cost function value decreases. 
+	algorithm plugin class that reports the details of the last evaluated 
+	aggregate function value obtained by the *ce* object. Uses 
+	the :meth:`CostEvaluator.reportParameters` and 
+	:meth:`CostEvaluator.formatResults` methods of *ce* for 
+	obtaining the output that is printed at first iteration and every time 
+	the aggregate function value decreases. 
 	
 	If *reportParameters* is ``True`` the report includes the corresponding 
 	input parameter values. 
 	
-	The :class:`ReportCostCorners` takes care of annotations (i.e. once it is 
-	installed in an iterative algorithm no further :class:`CostAnnotator` is 
-	needed). 
+	This class is also an annotator that collects the results at remote 
+	evaluation and copies them to the host where the remote evaluation was 
+	requested. 
 	"""
 	
-	def __init__(self, costEvaluator, reportParameters=True):
+	def __init__(self, ce, reportParameters=True):
 		Reporter.__init__(self)
+		CostAnnotator.__init__(self, ce)
 		
-		self.costEvaluator=costEvaluator
+		self.ce=ce
 		self.reportParameters=reportParameters
 		
-	def __call__(self, x, f, opt, annotation=None):
+	def __call__(self, x, f, opt):
 		# Print basic information for every iteration
-		Reporter.__call__(self, x, f, opt, annotation)
+		Reporter.__call__(self, x, f, opt)
 		
 		# Print details for first iteration and for every improvement
 		details=(opt.f is None) or (opt.niter==opt.bestIter)
-		
-		# If annotation was given, use it
-		if annotation is not None:
-			self.costEvaluator.results=annotation
-		else:
-			# Produce annotation, but only if details are going to be reported. 
-			# We can save a lot on communication here. 
-			if details:
-				annotation=self.costEvaluator.results
-			else:
-				annotation=None
 		
 		# Print details. This requires an annotation either to be received or created. 
 		if details and not self.quiet:
 			# Report details
 			
 			# Print parameters
-			msg=self.costEvaluator.formatParameters(x)
+			msg=self.ce.formatParameters(x)
 			print(msg)
 			
 			# Print performance
-			msg=self.costEvaluator.formatResults()
+			msg=self.ce.formatResults()
 			print(msg)
 			
 		return annotation
 	
-	
-# Default annotator for cost evaluator
-class CostAnnotator(Plugin):
-	"""
-	A subclass of the :class:`~pyopus.optimizer.base.Plugin` iterative 
-	algorithm plugin class. This is a callable object whose job is to
-	
-	* produce an annotation (details of the cost function value) stored in the 
-	  *costEvaluator* object (when invoked with ``None`` for *annotation*)
-	* update the *costEvaluator* object with the given annotation 
-	  (when invoked with an *annotation* that is not ``None``)
-	
-	Annotation is a copy of the :attr:`results` member of *costEvaluator*. 
-	
-	Annotators are used for propagating the details of the cost function from 
-	the machine where the evaluation takes place to the machine where the 
-	evaluation was requested (usually the master). 
-	"""
-	def __init__(self, costEvaluator):
-		self.ce=costEvaluator
-	
-	def __call__(self, x, f, opt, annotation=None):
-		if annotation is None:
-			return self.ce.results.copy()
-		else:
-			self.ce.results=annotation
-
 			
 # Cost function and input parameter collector
-class CostCollector(Plugin):
+class CostCollector(Plugin, CostAnnotator):
 	"""
 	A subclass of the :class:`~pyopus.optimizer.base.Plugin` iterative 
 	algorithm plugin class. This is a callable object invoked at every 
@@ -1140,20 +1136,22 @@ class CostCollector(Plugin):
 	Let niter denote the number of stored iterations. The input parameter 
 	values are stored in the :attr:`xval` member which is an array of shape 
 	(niter, n) while the cost function values are stored in the :attr:`fval` 
-	member (array with shape (niter)). 
+	member (array with shape (niter)). If the algorithm supplies constraint 
+	violations they are stored in the :attr:`hval` member. Otherwise this 
+	member is set to ``None``. 
 	
 	Some iterative algorithms do not evaluate iterations sequentially. Such 
 	algorithms denote the iteration number with the :attr:`index` member. If 
 	the :attr:`index` member is not present in the iterative algorithm object 
 	the internal iteration counter of the :class:`CostCollector` is used. 
 	
-	The first index in the *xval* and *fval* arrays is the iteration index. If 
-	iterations are not performed sequentially these two arrays may contain gaps 
-	where no valid input parameter or cost function value is found. The gaps 
-	are denoted by the *valid* array (of shape (niter)) where zeros denote a 
-	gap. 
+	The first index in the *xval*, *fval*, and *hval* arrays is the iteration 
+	index. If iterations are not performed sequentially these two arrays may 
+	contain gaps where no valid input parameter or cost function value is 
+	found. The gaps are denoted by the *valid* array (of shape (niter)) where 
+	zeros denote a gap. 
 	
-	*xval*, *fval*, and *valid* arrays are resized in chunks of size 
+	*xval*, *fval*, *hval*, and *valid* arrays are resized in chunks of size 
 	*chunkSize*. 
 	"""
 	def __init__(self, chunkSize=100): 
@@ -1161,14 +1159,17 @@ class CostCollector(Plugin):
 		
 		self.xval=None
 		self.fval=None
+		self.hval=None
 		self.n = chunkSize
 		self.memLen = chunkSize
 		
-	def __call__(self, x, f, opt, annotation=None):
+	def __call__(self, x, ft, opt):
 		if self.xval is None:
 			#allocate space in memory
 			self.xval = zeros([self.n,len(x)])
 			self.fval = zeros([self.n])
+			if type(ft) is tuple:
+				self.hval = zeros([self.n])
 			self.valid = zeros([self.n])
 			self.localindex = 0 
 		
@@ -1182,16 +1183,22 @@ class CostCollector(Plugin):
 		while index >= self.memLen: 
 			self.xval = concatenate((self.xval, zeros([self.n,len(x)])), axis=0)
 			self.fval = concatenate((self.fval, zeros([self.n])), axis=0)
+			if type(ft) is tuple:
+				self.hval = concatenate((self.hval, zeros([self.n])), axis=0)
 			self.valid = concatenate((self.valid, zeros([self.n])), axis=0)
 			self.memLen += self.n
 				
 		#write data
 		self.xval[index] = x
-		self.fval[index] = f
+		
+		if type(ft) is tuple:
+			self.fval[index] = ft[0]
+			self.hval[index] = (ft[1]**2).sum()
+		else:
+			self.fval[index] = ft
+			
 		self.valid[index] += 1 
-					
-		return None
-
+		
 	def finalize(self): 
 		"""
 		Removes the space beyond the recorded iteration with highest iteration 
@@ -1205,14 +1212,18 @@ class CostCollector(Plugin):
 		lastIndex=nonZeroIndex[0].max()+1
 		self.xval = self.xval[0:lastIndex][:]
 		self.fval = self.fval[0:lastIndex]
+		if self.hval is not None:
+			self.hval = self.hval[0:lastIndex]
 		self.valid = self.valid[0:lastIndex]
 
 	def reset(self):
 		"""
-		Clears the :attr:`xval`, :attr:`fval`, and :attr:`valid` members.
+		Clears the :attr:`xval`, :attr:`fval`, :attr:`hval`, and :attr:`valid` 
+		members.
 		"""
 		
 		self.xval = None
 		self.fval = None
+		self.hval = None
 		self.valid = None
 		self.memLen = self.n

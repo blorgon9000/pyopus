@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 """
 .. inheritance-diagram:: pyopus.optimizer.grnm
     :parts: 1
@@ -12,8 +13,8 @@ simplex internal angles away from 0.
 
 The algorithm was published in 
 
-Buermen A., Puhan J., Tuma T.: Grid Restrained Nelder-Mead Algorithm.
-Computational Optimization and Applications, vol. 34, pp. 359-375, 2006. 
+.. [grnm] Bűrmen Á., Puhan J., Tuma T.: Grid Restrained Nelder-Mead Algorithm.
+          Computational Optimization and Applications, vol. 34, pp. 359-375, 2006. 
 
 There is an error in Algorithm 2, step 5. The correct step 5 is: 
 If $f^{pe}<\min(f^{pe}, f^1, f^2, ..., f^{n+1})$ replace $x^i$ with $x^{pe}$ 

@@ -9,6 +9,7 @@
    
    simulator.base.rst
    simulator.spiceopus.rst
+   simulator.spectre.rst
    simulator.rawfile.rst
    simulator.hspice.rst
    simulator.hspicefile.rst

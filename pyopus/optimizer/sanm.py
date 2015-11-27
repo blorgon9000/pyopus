@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 """
 .. inheritance-diagram:: pyopus.optimizer.sanm
     :parts: 1
@@ -13,9 +14,9 @@ approximations are constructed with the help of a regular grid of points.
 
 The algorithm was published in 
 
-Buermen A., Tuma T.: Unconstrained derivative-free optimization by 
-successive approximation. Journal of computational and applied mathematics, 
-vol. 223, pp. 62-74, 2009. 
+.. [sanm] Bűrmen Á., Tuma T.: Unconstrained derivative-free optimization by 
+          successive approximation. Journal of computational and applied mathematics, 
+	  vol. 223, pp. 62-74, 2009. 
 """
 
 from ..misc.debug import DbgMsgOut, DbgMsg

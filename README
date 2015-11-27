@@ -6,14 +6,19 @@ parts of the code contributed by
 
 Janez Puhan (HSPICE file interface)
 Jernej Olensek (global optimization test problems)
-Gregor Cijan (cost collector and point generators)
+Gregor Cijan (cost collector)
 
 
 Credits 
 =======
 PyOpus uses code from the following packages
-- PyPVM by W. Michael Petullo and Gregory D. Baker
 - wxMpl by Ken McIvor
+- FORTRAN test problems implemented by
+  - Napsu Karmitsa
+  - Ladislav Lukšan and Jan Vlček
+  - Jorge More and Stefan Wild
+- MADS test problems MDO and STYRENE implemented by Sébastien Le Digabel,
+  Charles Audet, et. al. 
 
 See src/*.zip and src/*.tar.gz for details on respective licenses. 
 
@@ -21,38 +26,45 @@ See src/*.zip and src/*.tar.gz for details on respective licenses.
 What platforms was PyOPUS tested on? 
 ====================================
 Windows binary tested under Windows 7 (64-bit)
-  - Python 2.6.4 (32-bit)
-  - wxPython 2.8 (32-bit)
-  - MatPlotLib 0.99.1 (32-bit)
-  - NumPy 1.3.0 (32-bit)
-  - SciPy 0.7.1 (32-bit)
+  - Python 2.7.10 (32-bit)
+  - wxPython 3.0.2.0 (32-bit)
+  - MatPlotLib 1.4.3 (32-bit)
+  - NumPy 1.9.2 (32-bit)
+  - SciPy 0.15.1 (32-bit)
+  - Greenlet 0.4.7
+  - CVXOPT 1.1.7
 
-Linux binary tested under Debian Squeeze (64-bit)
-  - Python 2.6.6
-  - wxPython 2.8.10.1 (gtk2-unicode)
-  - MatPlotLib 0.99.3
-  - NumPy 1.4.1
-  - SciPy 0.7.2
-  - PVM 3.4.5
+Linux binary tested under Debian Jessie (64-bit)
+  - Python 2.7.9
+  - wxPython 3.0.1.1 
+  - MatPlotLib 1.4.2
+  - NumPy 1.8.2
+  - SciPy 0.14
+  - Greenlet 0.4.2
+  - CVXOPT 1.1.4
+  - OpenMPI 1.6.5 with MPI4py 1.3.1
 
-Building the Windows version tested with 
-  - 32-bit Python only 
-  - Compiler from Visual Studio 2008 
-  
-Building the Linux version requires PVM libraries to be installed on the 
-system. It was tested with 
-  - gcc 4.4
-	
 Windows specifics:
-  - PVM is not supported
+  - MPI functionality not tested
+  - CUTEr support not working, but should be fairly simple to implement it
 
 
 Using distutils: 
 ================
+- Preparation for building PyOPUS under Windows 7 (64 bit)
+  - Install VC 2008 compiler for Python, available at
+    http://www.microsoft.com/en-us/download/details.aspx?id=44266
+  - Start the compilation under VC 2008 64-bit command prompt
+  - If building PyOPUS fails with a message saying vcvarsall.bat cannot be found, 
+    edit distutils/msvc9compiler.py, make it return the path to vcvarsall.bat, 
+    i.e. add at the beginning of find_vcvarsall()
+      return "C:\\path_to_vc_for_python_2008\\Visual C++ for Python\\9.0\\vcvarsall.bat"
+  
 - To build PyOPUS
 
 	python setup.py build
 	
+  First the included copy of libf2c is compiled using GNU make (Linux) or Microsoft nmake (Windows). 
   The library is built under build/lib.*/pyopus/
   The objetc files for extensions are built under build/temp.*/
   
@@ -64,9 +76,9 @@ Using distutils:
 
      installs under default install prefix in folder
   
-		/usr/local/lib/python2.6/dist-packages/pyopus	
+		/usr/local/lib/python2.7/dist-packages/pyopus	
   
-     You will have to add /usr/local/lib/python2.6/dist-packages to your 
+     You will have to add /usr/local/lib/python2.7/dist-packages to your 
      PYTHONPATH. 
   
   2. To install in a different install prefix use for instance 
@@ -75,9 +87,9 @@ Using distutils:
 
      which places the files under
   
-		/home/arpadb/pfx/lib/python2.6/site-packages/pyopus/
+		/home/arpadb/pfx/lib/python2.7/site-packages/pyopus/
 
-     In this case you must add /home/arpadb/pfx/lib/python2.6/site-packages to 
+     In this case you must add /home/arpadb/pfx/lib/python2.7/site-packages to 
      your PYTHONPATH. 
   
   3. By running setup.py with --install-lib option 
@@ -105,11 +117,11 @@ Using distutils:
   
   Under Linux the contents are prefixed with the following path
   
-    ./usr/local/lib/python2.6/dist-packages/pyopus
+    ./usr/local/lib/python2.7/dist-packages/pyopus
 
   Under Windows the prefix is
   
-	Python26\Lib\site-packages\pyopus
+	Python27\Lib\site-packages\pyopus
 
 - To build a Windows installer distribution
 
@@ -141,17 +153,4 @@ To build the .html docomentation go to docsrc/ and type
 	
 The documentation will be built in docsrc/_build/html with index.html as the 
 main document and entry point. 
-
-Do not build the documentation under Windows because the documentation of the 
-PVM based modules will not be built (Python can't import the parallel.pvm 
-module because Windows version of PyOPUS does not support PVM). 
-
-
-Tips
-====
-1. If multiprocessing module fails to work, check if /dev/shm is mounted. 
-   Mount with
-
-     mount tmpfs /dev/shm -t tmpfs
-	 
 	 

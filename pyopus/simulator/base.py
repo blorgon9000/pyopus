@@ -30,6 +30,8 @@ A job is a dictionary with the following members:
   Keys are parameter names while values are parameter values 
 * ``options`` - a dictionary with the simulator options used for this job. 
   Keys are option names while values are option values
+* ``variables`` - a dictionary containing the Python variables that are 
+  available during the evaluation of ``saves`` and ``command``. 
 * ``saves`` - a list of strings giving Python expressions that evaluate to 
   lists of save directives specifying what simulated quantities should be 
   stored in simulator output
@@ -61,12 +63,14 @@ The simulator can be shut down and restarted whenever the user decides.
 """
 
 # Abstract siumulator interface
-from .. import locationID
+from ..misc.identify import locationID
 from ..misc.debug import DbgMsgOut
 from os import remove
 from dircache import listdir
 
 __all__ = [ 'Simulator' ]
+
+# TODO: stop changing input structures by adding missing defaults
  
 class Simulator(object):
 	"""
@@ -117,7 +121,7 @@ class Simulator(object):
 		self.activeResult=None
 		
 		# Build a unique ID for this simulator
-		self.simulatorID=locationID+"_"+str(Simulator.instanceNumber)
+		self.simulatorID=locationID()+"_"+str(Simulator.instanceNumber)
 		
 		# Increase simulator instance number
 		Simulator.instanceNumber+=1
@@ -171,8 +175,9 @@ class Simulator(object):
 	def setJobList(self, jobList, optimize=True):
 		"""
 		Sets *jobList* to be the job list for batch simulation. If the 
-		``options``, ``params``, or ``saves`` member is missing in any of the 
-		jobs, an empty dictionary/list is added to that job. 
+		``options``, ``params``, ``saves``, or ``variables`` member is 
+		missing in any of the jobs, an empty dictionary/list is added to 
+		that job. 
 		
 		The job list is marked as fresh meaning that a new set of simulator 
 		input files needs to be created. Files are created the first time a 
@@ -191,6 +196,8 @@ class Simulator(object):
 				job['params']={}
 			if 'saves' not in job: 
 				job['saves']=[]
+			if 'variables' not in job:
+				job['variables']={}
 		# Store it, mark it as fresh
 		self.jobList=jobList
 		self.jobListFresh=True
@@ -199,7 +206,13 @@ class Simulator(object):
 			self.jobSequence=self.optimizedJobSequence()
 		else:
 			self.jobSequence=self.unoptimizedJobSequence()
-	
+		# Converter from jobIndex to jobGroupIndex
+		self.jobGroupIndex={}
+		for jobGroupNdx in range(len(self.jobSequence)):
+			jobGroup=self.jobSequence[jobGroupNdx]
+			for jobIndex in jobGroup:
+				self.jobGroupIndex[jobIndex]=jobGroupNdx
+		
 	def unoptimizedJobSequence(self):
 		"""
 		Returns the unoptimized job sequence. A job sequence is a list of 

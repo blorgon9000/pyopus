@@ -10,7 +10,8 @@ __all__=[ 'simulatorClass' ]
 
 simulators={
 	'SpiceOpus': 'spiceopus', 
-	'HSpice': 'hspice'
+	'HSpice': 'hspice', 
+	'Spectre': 'spectre'
 }
 """
 A dictionary with simulator class name for key holding the 

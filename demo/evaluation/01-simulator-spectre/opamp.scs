@@ -1,0 +1,77 @@
+// Simple opamp, 0.18u, 1.8V, Spectre
+
+simulator lang=spectre
+
+// Any include or lib that is set from PyOPUS (specified in problem definition) 
+// must not be specified here. 
+
+// Include and lib files - set from PyOPUS
+// include "cmos180n.scs" section=tm
+
+// Include files - fixed
+include "mosmm.scs"
+
+// Any parameter that is set from PyOPUS (specified in problem definition) 
+// must not be specified here. 
+
+// Operating conditions - set from PyOPUS
+// parameters vdd=1.800000000000e+000 
+// dflTemp options temp=2.500000000000e+001 
+
+// Design parameters - set from PyOPUS
+// parameters mirr_w=7.455884130590e-005
+// parameters mirr_l=5.627763640504e-007
+
+// Operating conditions - fixed
+parameters lev1=0
+parameters lev2=0.5
+parameters tstart=1e-9
+parameters tr=1e-9
+parameters tf=1e-9
+parameters pw=500e-9
+parameters ibias=1.000000000000e-004 
+parameters rfb=1e6
+parameters rin=1e6
+
+// Design parameters - fixed
+parameters out_w=4.800592541419e-005
+parameters out_l=3.750131780858e-007
+parameters load_w=3.486243671853e-005
+parameters load_l=2.572996921261e-006
+parameters dif_w=7.728734451428e-006
+parameters dif_l=1.082371380389e-006
+parameters c_out=8.211596855053e-012
+parameters r_out=1.968986740568e+001
+
+// inp inn out vdd vss bias slp slpx
+subckt amp (inp inn out vdd vss bias slp slpx)
+xmp1 (n9 n10 vdd vdd)     submodp   w=load_w l=load_l m=2
+xmp2 (n10 n10 vdd vdd)    submodp   w=load_w l=load_l m=2
+xmp1s (n9 slpx vdd vdd)   submodp   w=1u     l=0.5u
+xmp3 (out n9 vdd vdd)     submodp   w=out_w  l=out_l  m=16
+xmn2 (n9 inp n8 vss)      submodn   w=dif_w  l=dif_l 
+xmn3 (n10 inn n8 vss)     submodn   w=dif_w  l=dif_l 
+xmn1s (bias slp vss vss)  submodn   w=1u     l=0.5u
+xmn1b (bias bias vss vss) submodn   w=mirr_w l=mirr_l m=2
+xmn1 (n8 bias vss vss)    submodn   w=mirr_w l=mirr_l m=2
+xmn4 (out bias vss vss)   submodn   w=mirr_w l=mirr_l m=16
+cout (n5a n9)             capacitor c=c_out
+rout (out n5a)            resistor  r=r_out
+ends amp
+
+// Test topology
+x1 (inp inn out vdd 0 bias 0 vdd) amp
+vdd (vdd 0) vsource dc=vdd
+ibias (vdd bias) isource dc=ibias
+rfb (out inn) resistor r=rfb
+rin (in inn) resistor r=rin
+vcom (inp 0) vsource dc=vdd/2
+vin (in inp) vsource dc=0 mag=1 type=pulse val0=lev1 val1=lev2 delay=tstart rise=tr fall=tf width=pw
+rload (out 0) resistor r=100k
+cload (out 0) capacitor c=0.5p
+
+// This file is included in the main simulator input file. 
+// Do not add .end - it is added by PyOPUS to the main input file. 
+
+// setFmt options rawfmt=nutbin
+// dcan dc

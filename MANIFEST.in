@@ -1,0 +1,11 @@
+graft demo
+include src/wxmpl-1.3.1.tar.gz src/libf2c.zip src/karmitsa.zip src/lvns.zip src/lvu.zip src/more-wild.zip src/nomad_test_problems.zip 
+include LICENSE Changelog* README MANIFEST.in
+recursive-include src *.sln *.suo *.vcproj Makefile
+recursive-include src *.c *.h *.cpp *.hpp *.cxx
+recursive-include src/libf2c Notice README *.h0 *.hvc *.lbc mkfile.* xsum0.out *.sy makefile.* *.bat  
+exclude src/libf2c/f2c.h src/libf2c/signal1.h src/libf2c/sysdep1.h src/libf2c/arith.h
+recursive-include docsrc conf.py Makefile *.rst
+graft docsrc/_static
+graft docsrc/_templates
+prune docsrc/_build

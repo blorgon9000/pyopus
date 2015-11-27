@@ -1,0 +1,28 @@
+This is an example of how to peform 50 differential evolution runs of 
+every test function in the global optimization test suite for population 
+sizes from 10 to 1000. Every run performs 75000 function evaluations. 
+
+This takes very very very long on one computer, but becomes manageable 
+with a cluster of 20 CPUs. 
+
+Every run is a batch job. Batch jobs are scheduled asynchronously to CPUs 
+in the cluster. The results are stored in files (around 50G). The fhist* 
+files contain the pickled function evaluation history for one run. 
+
+The an.py example shows how to load the results and analyze them. 
+
+The actual job (callable object) must be defined in a separate module so 
+that it can be pickled and sent to remote tasks. 
+
+
+To run the example under MPI, edit the hosts file (hosts.openmpi) and type 
+  
+  mpirun -n 100 -hostfile hosts.openmpi python depop.py
+
+The above example is for a cluster with 100 CPUs 
+(e.g. 25 quad core machines). 
+
+To see the results edit the an.py file (set function index, population size, 
+and run index) and type
+
+  python an.py

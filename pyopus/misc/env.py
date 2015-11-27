@@ -14,7 +14,7 @@ module spawns a login shell, runs ``python env.py`` and collects the
 environment on standard output. 
 
 If this module is run (with ``python env.py``) it dumps the environment in 
-form of a hex dumped (:func:`binascii.b2a_hex`) and pickled dictionary 
+form of a hex dumped (:func:`binascii.b2a_hex`) pickled dictionary 
 (:func:`cPickle.dumps`) to standard output and exits. 
 """
 

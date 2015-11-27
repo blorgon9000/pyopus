@@ -4,6 +4,12 @@
 	
 **Master-slave event-driven algorithm model (PyOPUS subsystem name: EDMS)**
 
+This is a master-slave algorithm model that first spawns slaves across computing 
+nodes and then communicates with them via messages. An algorithm is described 
+with messages and responses of actors (master and slaves) to the received messages. 
+This module is obsolete and will be removed. It does not support multilevel 
+parallelism. Use the :mod:`pyopus.parallel.cooperative` module instead. 
+
 In **master-slave** algorithms one task is the **master task** while all other 
 tasks are **slave tasks**. The master is usually the task that sends jobs to 
 slaves and collects the results sent back by slave tasks. 
@@ -31,8 +37,8 @@ We denote by **local mode** the mode of operation where there are no slave
 tasks present and all messages have the same destination - the master. This 
 means that the master hands out the work and the master also does all the work. 
 
-Every parallel algorithm can be transformed in such way that it is capable of 
-running in local mode (on a single CPU core). 
+If implemented correctly every parallel algorithm can be transformed in such 
+way that it is capable of running in local mode (on a single CPU core). 
 """
 
 from ..misc.debug import DbgMsgOut, DbgMsg
@@ -126,14 +132,11 @@ class EventDrivenMS(object):
 	If *debug* is greater than 0, debug messages are printed to standard 
 	output. 
 	
-	*receiveTimeout* is the timeout applied when messages are being received. 
-	After a timeout is reached the receive operation is repeated. 
-	
 	If *slaveIdleMessages* is ``True`` a :class:`MsgIdle` message is generated 
 	in the master's event loop and dispatched to the master every time a slave 
 	is marked as idle. A slave is marked as idle immediately after it is 
 	started and marked as busy a message is sent to it. An event handler called 
-	from the master's event loop can mark a slave as idle by calling the 
+	from the master's event loop can mark a slave as (not) idle by calling the 
 	:meth:`markSlaveIdle` method. 
 	
 	A :class:`MsgIdle` message is generated once for every started slave. 
@@ -160,7 +163,7 @@ class EventDrivenMS(object):
 	storage dictionary available. It can be retrieved by specifying ``None`` as 
 	the task identifier object. 
 	"""
-	def __init__(self, vm=None, maxSlaves=None, minSlaves=0, debug=0, receiveTimeout=5.0, 
+	def __init__(self, vm=None, maxSlaves=None, minSlaves=0, debug=0, 
 					slaveIdleMessages=True, localIdleMessages=False):
 		# Debug events flag
 		self.debugEvt=debug
@@ -170,11 +173,6 @@ class EventDrivenMS(object):
 		
 		# Minimal number of slaves. If the number falls below this value, we stop. 
 		self.minSlaves=minSlaves
-		
-		# Timeout for receiving messages in an iteration of the event loop
-		# After this time receive is repeated. This is nothing bad,
-		# it is just a heartbeat. 
-		self.receiveTimeout=receiveTimeout
 		
 		# Generate Idle messages for slaves (in master loop). 
 		# A slave is marked as busy when a message is sent to it. 
@@ -563,8 +561,8 @@ class EventDrivenMS(object):
 		waits for the :class:`MsgTaskExit` message to be received from every 
 		task. 
 		"""
-		# If VM is not available or even down, do nothing. 
-		if not self.vm or not self.vm.alive():
+		# If VM is not available, do nothing. 
+		if self.vm is None:
 			return
 		
 		# Ask the slaves politely to stop. 
@@ -603,38 +601,40 @@ class EventDrivenMS(object):
 		storage) when a :class:`MsgSlaveStarted` message is received from the 
 		slave indicating that it has entered the slave event loop. 
 		"""
-		# If VM is available
-		if self.vm.alive():
-			# Get number of free slots
-			freeSlots=self.vm.freeSlots()
+		# Do nothing if vm is not available
+		if self.vm is None:
+			return 
+	
+		# Get number of free slots
+		freeSlots=self.vm.freeSlots()
+		
+		# Calculate number of slaves to spawn
+		if self.maxSlaves is None:
+			# Fill all free slots
+			nSpawn=freeSlots
+		else:
+			# Have a desired number of slaves
+			# Calculate the number of slaves to spawn. 
+			nSpawn=self.maxSlaves-self.nSlaves
 			
-			# Calculate number of slaves to spawn
-			if self.maxSlaves is None:
-				# Fill all free slots
-				nSpawn=freeSlots
-			else:
-				# Have a desired number of slaves
-				# Calculate the number of slaves to spawn. 
-				nSpawn=self.maxSlaves-self.nSlaves
-				
-			# Do nothing if there is nothing to do :)
-			if nSpawn<=0:
-				return 
-				
+		# Do nothing if there is nothing to do :)
+		if nSpawn<=0:
+			return 
+			
+		if self.debugEvt:
+			DbgMsgOut("EDMS", "Trying to spawn %d slave(s) across %d free slot(s)." % (nSpawn, freeSlots))
+		
+		# Spawn
+		taskIDs=self.vm.spawnFunction(function=runSlave, args=[self], count=nSpawn)
+		
+		if self.debugEvt:
+			DbgMsgOut("EDMS", "Spawned %d slaves:" % len(taskIDs))
+			
+		# Add TaskIDs to spawnedSet
+		for taskID in taskIDs:
+			self.markSlaveSpawned(taskID)
 			if self.debugEvt:
-				DbgMsgOut("EDMS", "Trying to spawn %d slave(s) across %d free slot(s)." % (nSpawn, freeSlots))
-			
-			# Spawn
-			taskIDs=self.vm.spawnFunction(function=runSlave, args=[self], count=nSpawn)
-			
-			if self.debugEvt:
-				DbgMsgOut("EDMS", "Spawned %d slaves:" % len(taskIDs))
-				
-			# Add TaskIDs to spawnedSet
-			for taskID in taskIDs:
-				self.markSlaveSpawned(taskID)
-				if self.debugEvt:
-					DbgMsgOut("EDMS", "  "+str(taskID))
+				DbgMsgOut("EDMS", "  "+str(taskID))
 	
 	# Message handler and event loops
 	# ----
@@ -650,12 +650,16 @@ class EventDrivenMS(object):
 		for the corresponding message type. If the filter returns ``False`` the 
 		message is discarded. 
 
-		Finally the handler is called ans the *message* along with the *source* 
-		is passed to the handler. The list of responses (tuples of the form 
-		(*destination*, *message*)) is collected and returned. If the handler 
-		returns ``None`` an empty response list is assumed. 
+		Finally the handler is called. The *message* and the *source* are
+		passed to the handler. The list of responses (tuples of the form 
+		(*destination*, *message*)) is collected from the handler and returned. 
+		If the handler returns ``None`` an empty response list is assumed. 
 		
 		Returns the response list or ``None`` if the message was discarded. 
+		
+		Note that messages may come from sources that were not spawned by the 
+		master. Most notably these are workers spawned by the previous master. 
+		Therefore filters should always be used. 
 		"""
 		# Message is unhandled by default. 
 		responses=None
@@ -666,7 +670,7 @@ class EventDrivenMS(object):
 			# Found it, get handler and filter
 			(handler, filter)=self.handler[messageType]
 			sys.stdout.flush()
-			# Filter source. If no filter installed handle the message. 
+			# Filter source. If no filter is installed handle the message. 
 			if filter is None or filter(source):
 				# Call handler and collect responses
 				if handler is not None:
@@ -687,38 +691,38 @@ class EventDrivenMS(object):
 		
 		First it sets the :attr:`exitLoop` member to ``False``. 
 		
-		Then it checks if the virtual machine is alive. If it is alive, slaves 
-		are spawned. If the number of slaves is below *minSlaves* the algorithm 
+		Then it checks if a virtual machine is available. If it is, slaves are
+		spawned. If the number of slaves is below *minSlaves* the algorithm 
 		tries to run in local mode.
 		
 		An exception is raised if the alogrithm tries to run in local mode and 
 		local idle messages are disabled (*localIdleMessages* is ``False``). 
 		
-		The status of the virtual machine is checked and slaves are spawned. 
+		If a virtual machine is available slaves are spawned. 
 		The initial mode of operation (local or master-slave) is set. 
 		
-		A :class:`MsgStartup` message with *isMaster* set to ``True`` and 
-		*localMode* indicating the mode the algorithm starts in is generated. 
+		A :class:`MsgStartup` message is generated with *isMaster* set to 
+		``True`` and *localMode* indicating the mode the algorithm starts in. 
 		The message is mmediately handled and the resposes are discarded. 
 		
 		Next the main loop is entered. Every iteration of this loop does the 
 		following
 		
 		1. Re-checks if we are in local mode or master-slave mode. 
-		2. If the virtual machine is up performs the following steps
+		2. If a virtual machine is available performs the following steps
 		
 		   1. If not in local mode, no incoming messages are pending, and 
-		      *slaveIdleMessages* is ``True`` allowed, generate :class:`MsgIdle` 
+		      *slaveIdleMessages* is ``True``, generate :class:`MsgIdle` 
 		      messages for idle slaves and handle them. Send out the responses. 
 		   2. If in local mode do a nonblocking receive. In master-slave mode 
-		      do a blocking receive with timeout set to *receiveTimeout*. 
+		      do a blocking receive. 
 		   3. Handle the received message and send out the responses. 
 		
 		3. If we are in local mode and *localIdleMessages* is ``True`` performs 
 		   the following steps
 		   
-		   1. Generate a local :class:`MsgIdle` message (*taskID* set to 
-		      ``None``) and put it in *message*
+		   1. Generate a local :class:`MsgIdle` message 
+		      (*taskID* set to ``None``) and put it in *message*
 		   2. Handle *message* and collect responses. 
 		   3. If there is more than one response, raise an exception. 
 		   4. If there are no responses go to step 6. 
@@ -741,9 +745,10 @@ class EventDrivenMS(object):
 		localModeOld=None
 		
 		# Do we have a virtual machine?
-		if self.vm and self.vm.alive():
-			# VM is up, spawn slaves 
-			VMup=True
+		if self.vm:
+			# Get task ID
+			taskID=self.vm.taskID()
+			# Spawn slaves 
 			self.spawnSlaves()
 			# Check slave count
 			if self.nSlaves<self.minSlaves:
@@ -751,25 +756,17 @@ class EventDrivenMS(object):
 			else:
 				self.localMode=False
 		else:
-			# No VM, 
-			VMup=False
+			# No VM
+			taskID=None
 			self.localMode=True
 			
-		# Check if local mode is required
-		if self.localMode:
-			# If local Idle messages are not allowed. 
-			if not self.localIdleMessages:
-				raise Exception, DbgMsg("EDMS", "Started in local mode, but local idle messages are disabled. Exiting.")
+		# Check if local mode is required and local Idle messages are allowed
+		if self.localMode and not self.localIdleMessages:
+			raise Exception, DbgMsg("EDMS", "Started in local mode, but local idle messages are disabled.")
 			
 		keyboardInterrupt=False
 		try:
 			# Generate a startup message and handle it immediately. Discard the responses. 
-			if VMup:
-				# Get task ID
-				taskID=self.vm.taskID()
-			else:
-				taskID=None
-			
 			self.handleMessage(None, MsgStartup(taskID, True, self.localMode))
 			
 			# Main loop
@@ -792,9 +789,9 @@ class EventDrivenMS(object):
 				# Remember previous value of localMode
 				localModeOld=self.localMode
 				
-				# Is VM up?
-				if VMup:
-					# VM is up
+				# Do we have a vm
+				if self.vm is not None:
+					# We have a vm. 
 					# If we are not in local mode, Idle messages are allowed, and no messages are pending
 					# we must generate Idle messages for all idle slaves. 
 					if not self.localMode and self.slaveIdleMessages and not self.vm.checkForIncoming():
@@ -802,6 +799,7 @@ class EventDrivenMS(object):
 						for taskID in self.idleSet:
 							# Emulate Idle messages from None with idle task's ID. 
 							response=self.handleMessage(None, MsgIdle(taskID))
+							
 							# If the message was handled
 							if response is not None:
 								responses+=response
@@ -827,14 +825,14 @@ class EventDrivenMS(object):
 						if self.exitLoop:
 							break
 					
-					# We do a nonblocking receive if LocalIdle messages are allowed.
+					# We do a nonblocking receive in local mode. 
 					# This way we handle incoming messages while in local mode. 
 					if self.localMode: 
 						# Local mode, do a nonblocking receive, just in case a message is incoming. 
 						received=self.vm.receiveMessage(0.0)
 					else:
-						# Blocking receive with timeout when we are in master-slave mode. 
-						received=self.vm.receiveMessage(self.receiveTimeout)
+						# Blocking receive when we are in master-slave mode. 
+						received=self.vm.receiveMessage(-1.0)
 						
 					# Did we receive anything? 
 					if received is not None and received is not ():
@@ -915,8 +913,8 @@ class EventDrivenMS(object):
 		
 		First it sets the :attr:`exitLoop` member to ``False``. 
 		
-		Next it updates the virtual machine information and removes all slave 
-		information inherited from the master's :class:`EventDrivenMS` object. 
+		Next it removes all slave information inherited from the master's 
+		:class:`EventDrivenMS` object. 
 		
 		A :class:`MsgSlaveStarted` message is sent to the parent task (the 
 		master) with the :attr:`taskID` member set to the identifier object of 
@@ -930,7 +928,7 @@ class EventDrivenMS(object):
 		
 		The main loop is entered. The loop performs the following steps 
 		
-		1. Receive a message with timeout set to *receiveTimeout*. 
+		1. Receive a message (blocking)
 		2. Handle it. 
 		3. Send out the responses. 
 		
@@ -938,9 +936,6 @@ class EventDrivenMS(object):
 		"""
 		# Reset exitLoop flag
 		self.exitLoop=False
-		
-		# Update IDs in the VM manager because our vm is a copy of master's. 
-		self.vm.updateWorkerInfo()
 		
 		# Clear spawned, started, and idle set. Clear task storage. 
 		self.spawnedSet=set()
@@ -963,10 +958,10 @@ class EventDrivenMS(object):
 		# Message handling loop
 		while not self.exitLoop:
 			# Wait for message
-			received=self.vm.receiveMessage(self.receiveTimeout)
+			received=self.vm.receiveMessage(-1.0)
 			
-			# Timeout, receive again
-			if received is ():
+			# Handle error and timeout
+			if received is None or len(received)==0:
 				continue
 				
 			# Unpack 

@@ -6,6 +6,8 @@
    are disabled. Such a Release version can be debugged. 
  */
 
+#define NPY_NO_DEPRECATED_API NPY_1_8_API_VERSION
+
 #include "Python.h"
 #include "arrayobject.h"
 #include "rawfile.h"
@@ -70,13 +72,26 @@ __inline npy_intp validateKeyData(PyObject *key, PyObject *value, const char **k
 	
 	// Check if it is double or double complex
 	numarray=(PyArrayObject *)value; 
-	if (numarray->descr->type_num!=NPY_DOUBLE && numarray->descr->type_num!=NPY_CDOUBLE) 
+	// if (numarray->descr->type_num!=NPY_DOUBLE && numarray->descr->type_num!=NPY_CDOUBLE)
+	if (PyArray_TYPE(numarray)!=NPY_DOUBLE && PyArray_TYPE(numarray)!=NPY_CDOUBLE) 
 		// Skip it if it is not double or double complex
 		return 0;
 
 	return 1;
 }
 
+__inline void reverse(void *ptr, int chunksize, int nchunks) {
+  int i;
+  char *p, *p1, *p2, tmp;
+  p=(char *)ptr;
+  for(i=0;i<nchunks;i++,p+=chunksize) {
+    for(p1=p, p2=p+chunksize-1; p1<p2; p1++, p2--) {
+      tmp=*p2;
+      *p2=*p1;
+      *p1=tmp;
+    }
+  }
+}
 
 /* Write SPICE .raw file 
    Arguments:
@@ -192,15 +207,18 @@ static PyObject *raw_write(PyObject *self, PyObject *args) {
 			
 			// Set complex flag
 			numarray=(PyArrayObject *)value; 
-			if (numarray->descr->type_num==NPY_CDOUBLE)
+			// if (numarray->descr->type_num==NPY_CDOUBLE)
+			if (PyArray_TYPE(numarray)==NPY_CDOUBLE)
 				isComplex=1;
 
 			// Calculate length, store longest
 			len=PyArray_Size(value);
 			if (len>longest) {
 				longest=len;
-				longestDims=numarray->dimensions;
-				longestNdims=numarray->nd;
+				// longestDims=numarray->dimensions;
+				longestDims=PyArray_DIMS(numarray);
+				// longestNdims=numarray->nd;
+				longestNdims=PyArray_NDIM(numarray);
 				longestKey=key;			
 			}
 
@@ -318,29 +336,39 @@ static PyObject *raw_write(PyObject *self, PyObject *args) {
 			// Get array object and dump dimensions
 			numarray=(PyArrayObject *)value;
 			// Verify if dimension differ from longest vector's dimensions
-			for(j=0;j<numarray->nd && j<longestNdims;j++) {
-				if (numarray->dimensions[j]!=longestDims[j])
+			// for(j=0;j<numarray->nd && j<longestNdims;j++) {
+			for(j=0;j<PyArray_NDIM(numarray) && j<longestNdims;j++) {
+				// if (numarray->dimensions[j]!=longestDims[j])
+				if (PyArray_DIMS(numarray)[j]!=longestDims[j])
 					break;
 			}
-			if (j==numarray->nd && j==longestNdims) {
+			// if (j==numarray->nd && j==longestNdims) {
+			if (j==PyArray_NDIM(numarray) && j==longestNdims) {
 				// Nothing further to do, vector's dimensions match those of the longest vector
 			} else {
 				// Dump dimensions
 				fprintf(f, " dims=");
-				for(j=0;j<numarray->nd;j++) {
-					fprintf(f, "%d%s", numarray->dimensions[j], (j < numarray->nd - 1) ? "," : "");
+				// for(j=0;j<numarray->nd;j++) {
+				for(j=0;j<PyArray_NDIM(numarray);j++) {
+					// fprintf(f, "%d%s", numarray->dimensions[j], (j < numarray->nd - 1) ? "," : "");
+					fprintf(f, "%d%s", PyArray_DIMS(numarray)[j], (j < PyArray_NDIM(numarray) - 1) ? "," : "");
 				}
 			}
 
 			// Initialize FastArray entry
-			if (numarray->descr->type_num==NPY_CDOUBLE)
+			// if (numarray->descr->type_num==NPY_CDOUBLE)
+			if (PyArray_TYPE(numarray)==NPY_CDOUBLE)
 				faPtr[i].isComplex=1;
 			else
 				faPtr[i].isComplex=0;
-			faPtr[i].data=numarray->data;
-			faPtr[i].pos=numarray->data;
-			faPtr[i].stride=numarray->strides[numarray->nd-1];
-			faPtr[i].length=PyArray_Size(value);
+			// faPtr[i].data=numarray->data;
+			faPtr[i].data=PyArray_DATA(numarray);
+			// faPtr[i].pos=numarray->data;
+			faPtr[i].pos=PyArray_DATA(numarray);
+			// faPtr[i].stride=numarray->strides[numarray->nd-1];
+			faPtr[i].stride=PyArray_STRIDE(numarray, PyArray_NDIM(numarray)-1);
+			// faPtr[i].length=PyArray_Size(value);
+			faPtr[i].length=PyArray_SIZE(numarray);
 
 			// End line
 			putc('\n', f);
@@ -437,7 +465,7 @@ static PyObject *raw_write(PyObject *self, PyObject *args) {
 	return PyInt_FromLong(!status);
 }
 
-/* Reads a line from file and resizes the buffer it the line doesn't fit.
+/* Reads a line from file and resizes the buffer if the line doesn't fit.
    The trailing newline is not stored in the string. 
    Returns 0 if outOfMem, 1 otherwise. 
    The number of bytes in buffer is stored in bytesInBuf. -1 means read error. 
@@ -736,7 +764,7 @@ npy_intp readDims(char **string, npy_intp **dim, npy_intp *dimSize, int *nDim) {
  */ 
 static PyObject *raw_read(PyObject *self, PyObject *args) {
 	const char *fileName;
-	int debugMode;
+	int debugMode, reverseBytes, noReadFirst;
 	npy_intp status=0;
 	FILE *f;
 	char *p, *pp, *p1, *p2, *p3, *p4, tmpc, tmpc1;
@@ -744,6 +772,7 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 	npy_uintp lineBufSize=0, bytesRead;
 	char *lineBuf1=NULL;
 	npy_uintp lineBufSize1=0, bytesRead1;
+	char *firstTitle=NULL, *firstDate=NULL;
 	PyObject *plotTitle=NULL, *plotDate=NULL, *plotName=NULL;
 	PyObject *tmpStr=NULL, *tmpArray=NULL, *data=NULL, *scales=NULL, *dflScale=NULL;
 	PyArrayObject *numarray=NULL;
@@ -759,7 +788,7 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 	double dd, di, cc[2];
 	npy_intp ii;
 			
-	if (!PyArg_ParseTuple(args, "si", &fileName, &debugMode)) {
+	if (!PyArg_ParseTuple(args, "sii", &fileName, &debugMode, &reverseBytes)) {
 		status=1;
 	}
 
@@ -951,7 +980,7 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 			}
 			skipSpaces(&p);
 			if (!readDims(&p, &dim, &dimSize, &nDim)) {
-				// Out of memory
+				// Out of me				p1=lineBuf1;mory
 				status=1;
 				if (debugMode) {
 					fprintf(df, "raw_read: can't allocate default dimensions.\n");
@@ -1032,18 +1061,32 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 			}
 			faPtr=tmpFaPtr;
 
+			// Do not read line if there is anything left in the current line to read
+			// For spectre output - 'Variables:' is followed by the first variable on the same line
+			for(;*p==' '||*p=='\t';p++);
+			noReadFirst=0;
+			if (*p!='\n' && *p!='\r' && *p!=0) {
+			  // Do not read line, use current one
+			  noReadFirst=1;
+			}
+				
 			// Read variable descriptions
 			for(i=0;i<count;i++) {
-				bytesRead1=0;
-				if (!readLine(f, &lineBuf1, &lineBufSize1, &bytesRead1)) {
-					// Out of memory
-					status=1;
-					if (debugMode) {
-						fprintf(df, "raw_read: can't allocate variable line buffer.\n");
+				if (noReadFirst && i==0) {
+					p1=p;
+				} else {
+					bytesRead1=0;
+					
+					if (!readLine(f, &lineBuf1, &lineBufSize1, &bytesRead1)) {
+						// Out of memory
+						status=1;
+						if (debugMode) {
+							fprintf(df, "raw_read: can't allocate variable line buffer.\n");
+						}
+						break;
 					}
-					break;
+					p1=lineBuf1;
 				}
-				p1=lineBuf1;
 
 				// Handle one variable entry
 				// Skip variable number (integer)
@@ -1149,7 +1192,7 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 							}
 							break;
 						}
-						// This vector has own dimensions
+						// This vector has own dimensionsin
 						hasOwnDims=1;
 					} else {
 						// Ignore everything else
@@ -1167,18 +1210,22 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 				if (hasOwnDims) {
 					if (isComplex) {
 						// tmpArray=PyArray_FromDims(nDim1, dim1, PyArray_CDOUBLE);
-						tmpArray=PyArray_SimpleNew(nDim1, dim1, PyArray_CDOUBLE);
+						// tmpArray=PyArray_SimpleNew(nDim1, dim1, PyArray_CDOUBLE);
+						tmpArray=PyArray_SimpleNew(nDim1, dim1, NPY_CDOUBLE);
 					} else {
 						// tmpArray=PyArray_FromDims(nDim1, dim1, PyArray_DOUBLE);
-						tmpArray=PyArray_SimpleNew(nDim1, dim1, PyArray_DOUBLE);
+						// tmpArray=PyArray_SimpleNew(nDim1, dim1, PyArray_DOUBLE);
+						tmpArray=PyArray_SimpleNew(nDim1, dim1, NPY_DOUBLE);
 					}
 				} else {
 					if (isComplex) {
 						// tmpArray=PyArray_FromDims(nDim, dim, PyArray_CDOUBLE);
-						tmpArray=PyArray_SimpleNew(nDim, dim, PyArray_CDOUBLE);
+						// tmpArray=PyArray_SimpleNew(nDim, dim, PyArray_CDOUBLE);
+						tmpArray=PyArray_SimpleNew(nDim, dim, NPY_CDOUBLE);
 					} else {
 						// tmpArray=PyArray_FromDims(nDim, dim, PyArray_DOUBLE);
-						tmpArray=PyArray_SimpleNew(nDim, dim, PyArray_DOUBLE);
+						// tmpArray=PyArray_SimpleNew(nDim, dim, PyArray_DOUBLE);
+						tmpArray=PyArray_SimpleNew(nDim, dim, NPY_DOUBLE);
 					}
 				}
 				if (!tmpArray) {
@@ -1224,10 +1271,14 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 					faPtr[i].isComplex=1;
 				else
 					faPtr[i].isComplex=0;
-				faPtr[i].data=numarray->data;
-				faPtr[i].pos=numarray->data;
-				faPtr[i].stride=numarray->strides[numarray->nd-1];
-				faPtr[i].length=PyArray_Size(tmpArray);
+				// faPtr[i].data=numarray->data;
+				faPtr[i].data=PyArray_DATA(numarray);
+				// faPtr[i].pos=numarray->data;
+				faPtr[i].pos=PyArray_DATA(numarray);
+				// faPtr[i].stride=numarray->strides[numarray->nd-1];
+				faPtr[i].stride=PyArray_STRIDE(numarray, PyArray_NDIM(numarray)-1);
+				// faPtr[i].length=PyArray_Size(tmpArray);
+				faPtr[i].length=PyArray_SIZE(numarray);
 
 				// Restore original string at end of name
 				*p2=tmpc;
@@ -1257,8 +1308,9 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 
 			// Read ascii data
 			for(i=0;i<longest && ok;i++) {
+				int dummyRetval;
 				// Read index
-				fscanf(f, " %d", &ii);
+				dummyRetval=fscanf(f, " %d", &ii);
 				for(faPos=faPtr, j=0; j<count; faPos++, j++) {
 					if (i<faPos->length) {
 						if (!isComplex) {
@@ -1329,12 +1381,16 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 								ok=0;
 								break;
 							} 
+							if (reverseBytes) 
+							  reverse(&dd, sizeof(double), 1);
 							*((npy_double *)(faPos->pos))=dd;
 						} else {
 							if (fread((char *) cc, 2*sizeof(double), 1, f) != 1) {
 								ok=0;
 								break;
 							} 
+							if (reverseBytes) 
+							  reverse(&cc, sizeof(double), 2);
 							((npy_cdouble *)(faPos->pos))->real=*cc;
 							((npy_cdouble *)(faPos->pos))->imag=*(cc+1);
 						}
@@ -1363,6 +1419,8 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 				}
 				break;
 			}
+			
+			// Reverse bytes
 
 			// Flag for triggering the creation of a tuple 
 			// and resetting temporary structure pointers
@@ -1374,6 +1432,12 @@ static PyObject *raw_read(PyObject *self, PyObject *args) {
 		if (storeResult) {
 			// Done reading, create tuple
 			if (!status) {
+				// No title, use empty string
+				if (!plotTitle)
+					plotTitle=PyString_FromString("");
+				if (!plotDate)
+					plotDate=PyString_FromString("");
+			  
 				tuple=PyTuple_Pack(6, data, dflScale, scales, plotTitle, plotDate, plotName);
 				if (!tuple) {
 					// Out of memory

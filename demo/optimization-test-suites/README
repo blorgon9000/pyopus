@@ -1,5 +1,0 @@
-The examples in this folder demonstrate how to introduce a delay in function
-evaluation, how to use the More-garbow-Hillstrom set of test functions and
-how to use the set of global optimization test functions. 
-
-The order in which the examples are studied is not important. 

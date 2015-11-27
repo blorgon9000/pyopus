@@ -11,6 +11,8 @@
 // version of Python libraries and interpreter. We use Release version instead where
 // optimizations are disabled. Such a Release version can be debugged.
 
+#define NPY_NO_DEPRECATED_API NPY_1_8_API_VERSION
+
 #include "Python.h"
 #include "arrayobject.h"
 #include "hspice_read.h"
@@ -254,7 +256,7 @@ int readHeaderBlock(FILE *f, int debugMode, const char *fileName, char **buf,
 //   sweepValues ... sweep points array, new reference created
 //   faSweep     ... pointer to fast access structure for sweep array
 int getSweepInfo(int debugMode, PyObject **sweep, char *buf, int *sweepSize,
-				 PyObject **sweepValues, struct FastArray *faSweep)
+				 PyArrayObject **sweepValues, struct FastArray *faSweep)
 {
 	char *sweepName = NULL;
 	npy_intp dims;
@@ -280,7 +282,8 @@ int getSweepInfo(int debugMode, PyObject **sweep, char *buf, int *sweepSize,
 
 	// Create array for sweep parameter values.
 	dims=*sweepSize;
-	*sweepValues = PyArray_SimpleNew(1, &dims, PyArray_DOUBLE);
+	// *sweepValues = PyArray_SimpleNew(1, &dims, PyArray_DOUBLE);
+	*sweepValues = (PyArrayObject *)PyArray_SimpleNew(1, &dims, NPY_DOUBLE);
 	if(*sweepValues == NULL)
 	{
 		if(debugMode) fprintf(debugFile, "HSpiceRead: failed to create array.\n");
@@ -288,12 +291,16 @@ int getSweepInfo(int debugMode, PyObject **sweep, char *buf, int *sweepSize,
 	}
 
 	// Prepare fast access structure.
-	faSweep->data = ((PyArrayObject *)(*sweepValues))->data;
-	faSweep->pos = ((PyArrayObject *)(*sweepValues))->data;
-	faSweep->stride =
-		((PyArrayObject *)(*sweepValues))->strides[((PyArrayObject *)(*sweepValues))->nd -
-		1];
-	faSweep->length = PyArray_Size(*sweepValues);
+	// faSweep->data = ((PyArrayObject *)(*sweepValues))->data;
+	faSweep->data = PyArray_DATA(*sweepValues);
+	// faSweep->pos = ((PyArrayObject *)(*sweepValues))->data;
+	faSweep->pos = PyArray_DATA(*sweepValues);
+	faSweep->stride = 
+		PyArray_STRIDE(*sweepValues, PyArray_NDIM(*sweepValues)-1);
+		// ((PyArrayObject *)(*sweepValues))->strides[((PyArrayObject *)(*sweepValues))->nd -
+		// 1];
+	// faSweep->length = PyArray_Size(*sweepValues);
+	faSweep->length = PyArray_SIZE(*sweepValues);
 
 	return 0;
 }
@@ -359,7 +366,7 @@ int readDataBlock(FILE *f, int debugMode, const char *fileName, float **rawData,
 //   dataList       ... list of data dictionaries
 int readTable(FILE *f, int debugMode, const char *fileName, PyObject *sweep,
 			  int numOfVariables, int type, int numOfVectors,
-			  struct FastArray *faSweep, PyObject **tmpArray,
+			  struct FastArray *faSweep, PyArrayObject **tmpArray,
 			  struct FastArray *faPtr, char *scale, char **name, PyObject *dataList)
 {
 	int i, j, num, offset = 0, numOfColumns = numOfVectors;
@@ -398,9 +405,11 @@ int readTable(FILE *f, int debugMode, const char *fileName, PyObject *sweep,
 		// Create array for i-th vector.
 		dims=num;
 		if(type == complex_var && i > 0 && i < numOfVariables)
-			tmpArray[i] = PyArray_SimpleNew(1, &dims, PyArray_CDOUBLE);
+			// tmpArray[i] = PyArray_SimpleNew(1, &dims, PyArray_CDOUBLE);
+			tmpArray[i] = (PyArrayObject *)PyArray_SimpleNew(1, &dims, NPY_CDOUBLE);
 		else
-			tmpArray[i] = PyArray_SimpleNew(1, &dims, PyArray_DOUBLE);
+			// tmpArray[i] = PyArray_SimpleNew(1, &dims, PyArray_DOUBLE);
+			tmpArray[i] = (PyArrayObject *)PyArray_SimpleNew(1, &dims, NPY_DOUBLE);
 		if(tmpArray[i] == NULL)
 		{
 			if(debugMode)
@@ -412,12 +421,16 @@ int readTable(FILE *f, int debugMode, const char *fileName, PyObject *sweep,
 
 	for(i = 0; i < numOfVectors; i++)	// Prepare fast access structures.
 	{
-		faPtr[i].data = ((PyArrayObject *)(tmpArray[i]))->data;
-		faPtr[i].pos = ((PyArrayObject *)(tmpArray[i]))->data;
+		// faPtr[i].data = ((PyArrayObject *)(tmpArray[i]))->data;
+		faPtr[i].data = PyArray_DATA(tmpArray[i]);
+		// faPtr[i].pos = ((PyArrayObject *)(tmpArray[i]))->data;
+		faPtr[i].pos = PyArray_DATA(tmpArray[i]);
 		faPtr[i].stride =
-			((PyArrayObject *)(tmpArray[i]))->strides[((PyArrayObject *)(tmpArray[i]))->nd -
-			1];
-		faPtr[i].length = PyArray_Size(tmpArray[i]);
+			PyArray_STRIDE(tmpArray[i], PyArray_NDIM(tmpArray[i])-1);
+			// ((PyArrayObject *)(tmpArray[i]))->strides[((PyArrayObject *)(tmpArray[i]))->nd -
+			// 1];
+		// faPtr[i].length = PyArray_Size(tmpArray[i]);
+		faPtr[i].length = PyArray_SIZE(tmpArray[i]);
 	}
 
 	for(i = 0; i < num; i++)	// Save raw data.
@@ -440,11 +453,11 @@ int readTable(FILE *f, int debugMode, const char *fileName, PyObject *sweep,
 	rawData = NULL;
 
 	// Insert vectors into dictionary.
-	num = PyDict_SetItemString(data, scale, tmpArray[0]);
+	num = PyDict_SetItemString(data, scale, (PyObject *)(tmpArray[0]));
 	i = -1;
 	if(num == 0) for(i = 0; i < numOfVectors - 1; i++)
 	{
-		num = PyDict_SetItemString(data, name[i], tmpArray[i + 1]);
+		num = PyDict_SetItemString(data, name[i], (PyObject *)(tmpArray[i + 1]));
 		if(num != 0) break;
 	}
 	for(j = 0; j < numOfVectors; j++) Py_XDECREF(tmpArray[j]);
@@ -494,8 +507,9 @@ static PyObject *HSpiceRead(PyObject *self, PyObject *args)
 	struct FastArray faSweep, *faPtr = NULL;
 	FILE *f = NULL;
 	PyObject *date = NULL, *title = NULL, *scale = NULL, *sweep = NULL,
-		*sweepValues = NULL, *dataList = NULL, **tmpArray = NULL, *sweeps = NULL,
+		*dataList = NULL, *sweeps = NULL,
 		*tuple = NULL, *list = NULL;
+	PyArrayObject *sweepValues = NULL, **tmpArray = NULL;
 
 	// Get hspice_read() arguments.
 	if(!PyArg_ParseTuple(args, "si", &fileName, &debugMode)) return Py_None;
@@ -648,7 +662,7 @@ static PyObject *HSpiceRead(PyObject *self, PyObject *args)
 	}
 
 	// Allocate space for pointers to arrays.
-	tmpArray = (PyObject **)PyMem_Malloc(numOfVectors * sizeof(PyObject *));
+	tmpArray = (PyArrayObject **)PyMem_Malloc(numOfVectors * sizeof(PyArrayObject *));
 	if(tmpArray == NULL)
 	{
 		if(debugMode)

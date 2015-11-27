@@ -5,15 +5,16 @@
 **Box's constrained simplex optimizer (PyOPUS subsystem name: BCOPT)**
 
 A version of the Box's simplex algorithm that is capable of handling box 
-constraints. First published (as a general constrained algorithm) in 
-
-Box, M. J.: A new method of constrained optimization and a comparison with 
-other methods. Computer Journal, vol. 8, pp. 42-52, 1965. 
+constraints. First published (as a general constrained algorithm) in [box]_. 
 
 Unfortunately no convergence theory is available. 
 
 A simplex in the Box's version of the algorithm is referred to as the 
 **complex**. 
+
+.. [box] Box, M. J.: A new method of constrained optimization and a comparison with 
+         other methods. Computer Journal, vol. 8, pp. 42-52, 1965. 
+
 """
 
 from ..misc.debug import DbgMsgOut, DbgMsg

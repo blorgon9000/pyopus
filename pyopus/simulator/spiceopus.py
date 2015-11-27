@@ -80,8 +80,6 @@ from ..misc.debug import DbgMsgOut, DbgMsg
 __all__ = [ 'ipath', 'save_all', 'save_voltage', 'save_current', 'save_property', 
 			'an_op', 'an_dc', 'an_ac', 'an_tran', 'an_noise', 'SpiceOpus' ] 
 
-import pdb
-
 #
 # Hierarchical path handling 
 #
@@ -469,7 +467,8 @@ class SpiceOpus(Simulator):
 			'v': save_voltage,
 			'i': save_current, 
 			'p': save_property, 
-			'ipath': ipath
+			'ipath': ipath, 
+			'var': {}
 		}
 		
 		# Local namespace for analysis evaluation
@@ -480,7 +479,8 @@ class SpiceOpus(Simulator):
 			'tran': an_tran, 
 			'noise': an_noise, 
 			'ipath': ipath, 
-			'param': {}
+			'param': {}, 
+			'var': {}
 		}
 		
 		# Default binary based on OPUSHOME and platform
@@ -513,16 +513,23 @@ class SpiceOpus(Simulator):
 		
 		self._compile()
 		
-	def _createSaves(self, saveDirectives):
+	def _createSaves(self, saveDirectives, variables):
 		"""
 		Creates a list of save directives by evaluating the members of the 
-		*saveDirectives* list. 
+		*saveDirectives* list. *variables* is a dictionary of extra 
+		variables that are available during directive evaluation in the 
+		``var`` dictionary. 
 		"""
+		# Prepare evaluation environment
+		evalEnv={}
+		evalEnv.update(self.saveLocals)
+		evalEnv['var']=variables
+		 
 		compiledList=[]
 		
 		for saveDirective in saveDirectives:
 			# A directive must be a string that evaluates to a list of strings
-			saveList=eval(saveDirective, globals(), self.saveLocals)
+			saveList=eval(saveDirective, globals(), evalEnv)
 
 			if type(saveList) is not list: 
 				raise Exception, DbgMsg("SOSI", "Save directives must evaluate to a list of strings.")
@@ -599,13 +606,6 @@ class SpiceOpus(Simulator):
 		# Representative job
 		repJob=self.jobList[jobGroup[0]]
 
-		# Include definitions
-		for definition in repJob['definitions']:
-			if 'section' in definition:
-				f.write('.lib \''+definition['file']+'\' '+definition['section']+'\n')
-			else:
-				f.write('.include \''+definition['file']+'\'\n')
-		
 		# Write representative options (as .option directives)
 		if 'options' in repJob:
 			for (option, value) in repJob['options'].iteritems():
@@ -629,7 +629,14 @@ class SpiceOpus(Simulator):
 				f.write('.param '+param+'='+str(value)+'\n')
 			else:
 				f.write('.option temp='+str(value)+'\n')
-
+				
+		# Include definitions
+		for definition in repJob['definitions']:
+			if 'section' in definition:
+				f.write('.lib \''+definition['file']+'\' '+definition['section']+'\n')
+			else:
+				f.write('.include \''+definition['file']+'\'\n')
+		
 		# Control block
 		f.write('\n');
 		f.write('.control\n')
@@ -645,6 +652,11 @@ class SpiceOpus(Simulator):
 			# Get job name
 			if self.debug>0:
 				DbgMsgOut("SOSI", "  job '"+job['name']+"'")
+			
+			# Prepare evaluation environment for analysis command
+			evalEnv={}
+			evalEnv.update(self.analysisLocals)
+			evalEnv['var']=job['variables']
 			
 			# Prepare analysis params - used for evauating analysis expression. 
 			# Case: input parameters get overriden by job parameters - default
@@ -681,7 +693,7 @@ class SpiceOpus(Simulator):
 				
 			# Write saves for analysis
 			if 'saves' in job:
-				saves=self._createSaves(job['saves'])
+				saves=self._createSaves(job['saves'], job['variables'])
 				
 				count=0
 				for save in saves:
@@ -700,7 +712,7 @@ class SpiceOpus(Simulator):
 			
 			# Write analysis
 			f.write('echo Running '+str(job['name'])+'\n')
-			f.write(eval(job['command'], globals(), self.analysisLocals)+'\n')
+			f.write(eval(job['command'], globals(), evalEnv)+'\n')
 			f.write('if $(#plots) gt 1\n  set filetype=binary\n  write '+self.simulatorID+'_job'+str(j)+'_'+job['name']+'.raw\nelse\n echo '+str(job['name'])+' analysis failed.\nend\n\n')
 			
 		# Write quit - no need for it... it is sent to simulator's stdin

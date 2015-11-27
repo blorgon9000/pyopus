@@ -1,5 +1,5 @@
-:mod:`pyopus.evaluator` --- System evaluation
-=============================================
+:mod:`pyopus.evaluator` --- Performance evaluation
+==================================================
 
 .. automodule:: pyopus.evaluator
 
@@ -8,5 +8,7 @@
    
    evaluator.measure.rst
    evaluator.performance.rst
-   evaluator.cost.rst
+   evaluator.aggregate.rst
+   evaluator.auxfunc.rst
+
    

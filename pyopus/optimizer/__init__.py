@@ -4,16 +4,9 @@
 This module provides unconstrained and bound constrained optimization 
 algorithms. 
 
-Suites of test functions for local and global optimization algorithms are also 
-available. 
-
 Nothing from the submodules of this module is imported into the main 
 :mod:`optimizer` module. The :mod:`optimizer` module provides only the 
 :func:`optimizerClass` function for on-demand loading of optimizer classes. 
-
-The :mod:`mgh` and the :mod:`glbctf` submodule are self-contained and can be 
-used separately from PyOPUS by simply copying ``mgh.py`` or the ``glbctf.py`` 
-file to your own project. 
 
 Optimization algorithms search for the argument which results in the lowest 
 possible value of the **cost function**. The search can be **constrained** 
@@ -30,10 +23,11 @@ optimizers={
 	'HookeJeeves': 'hj', 
 	'NelderMead': 'nm', 
 	'BoxComplex': 'boxcomplex', 
+	'GRNelderMead': 'grnm', 
 	'SANelderMead': 'sanm', 
 	'DifferentialEvolution': 'de', 
 	'ParallelSADE': 'psade', 
-	'ParallelPointEvaluator': 'ppe'
+	'QPMADS': 'qpmads'
 }
 """
 A dictionary with optimizer class name for key holding the module names 

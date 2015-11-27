@@ -6,14 +6,14 @@ Every PyOPUS module generates debug messages of the form
 ``locationID subsystem: bodyText``. 
 
 *locationID* uniquely identifies a Python process on a host. 
-See :mod:`pyopus.misc.id` for details. 
+See :mod:`pyopus.misc.identify` for details. 
 
 *subsystem* is a string identifying the PyOPUS subsystem that generated the 
 message. 
 """
 # Debug message output
 
-from id import locationID
+from identify import locationID
 
 __all__ = [ 'DbgMsg', 'DbgMsgOut' ]
 
@@ -24,7 +24,7 @@ def DbgMsg(subsystem, text):
 	Generates a debug message with *text* in its body. The message originates 
 	from the given PyOPUS *subsystem*.
 	"""
-	prefix="%s %s: " % (locationID, subsystem)
+	prefix="%s %s: " % (locationID(), subsystem)
 	rows=text.split("\n");
 	out=[]
 	for row in rows:
@@ -37,7 +37,7 @@ def DbgMsgOut(subsystem, text):
 	Generates and prints on stdout a debug message with *text* in its body. 
 	The message originates from the given PyOPUS *subsystem*.
 	"""
-	prefix="%s %s: " % (locationID, subsystem)
+	prefix="%s %s: " % (locationID(), subsystem)
 	rows=text.split("\n");
 	for row in rows:
 		print(prefix+row)

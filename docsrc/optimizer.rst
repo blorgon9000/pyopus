@@ -1,5 +1,5 @@
-:mod:`pyopus.optimizer` --- Optimization algorithms and test function suites
-============================================================================
+:mod:`pyopus.optimizer` --- Optimization algorithms
+===================================================
 
 .. automodule:: pyopus.optimizer
 	:members:
@@ -8,13 +8,14 @@
    :maxdepth: 2
    
    optimizer.base.rst
+   optimizer.cache.rst
+   optimizer.filter.rst
    optimizer.coordinate.rst
    optimizer.hj.rst
    optimizer.nm.rst
-   optimizer.boxcomplex.rst
+   optimizer.grnm.rst
    optimizer.sanm.rst
-   optimizer.ppe.rst
+   optimizer.boxcomplex.rst
    optimizer.de.rst
    optimizer.psade.rst
-   optimizer.mgh.rst
-   optimizer.glbctf.rst
+   optimizer.qpmads.rst

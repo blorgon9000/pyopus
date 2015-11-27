@@ -1050,7 +1050,7 @@ class PlotPanel(FigureCanvasWxAgg):
 		
 		# Connect wx event handlers
 		# topwin is a PlotFrame object - the toplevel window of a figure
-		topwin.Connect(-1, self.GetId(), wx.wxEVT_ACTIVATE, self.OnActivate)
+		topwin.Connect(self.GetId(), self.GetId(), wx.wxEVT_ACTIVATE, self.OnActivate)
 
 		wx.EVT_ERASE_BACKGROUND(self, self.OnEraseBackground)
 		wx.EVT_WINDOW_DESTROY(self, self.OnDestroy)

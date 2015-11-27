@@ -1,0 +1,253 @@
+// Downloaded from http://www.eas.asu.edu/~ptm/
+// 180nm BSIM3 model card for bulk CMOS: V0.0
+
+// changed lmax to 4u
+// parametrized vth0 and u0
+
+library ptm18
+
+// WCD model 
+section wcd
+include "cmos180n.scs" section=dfl
+parameters vth0n=vth0nt
+parameters u0n=u0nt
+parameters vth0p=vth0pt
+parameters u0p=u0pt
+include "cmos180n.scs" section=model
+endsection
+
+// Typical mean
+section tm
+include "cmos180n.scs" section=dfl
+parameters vth0n=vth0nt
+parameters u0n=u0nt
+parameters vth0p=vth0pt
+parameters u0p=u0pt
+include "cmos180n.scs" section=model
+endsection
+
+// Worst power
+section wp
+include "cmos180n.scs" section=dfl
+parameters vth0n=vth0nt*(1-vth0nd)
+parameters u0n=u0nt*(1+u0nd)
+parameters vth0p=vth0pt*(1-vth0pd)
+parameters u0p=u0pt*(1+u0pd)
+include "cmos180n.scs" section=model
+endsection
+
+// Worst speed
+section ws
+include "cmos180n.scs" section=dfl
+parameters vth0n=vth0nt*(1+vth0nd)
+parameters u0n=u0nt*(1-u0nd)
+parameters vth0p=vth0pt*(1+vth0pd)
+parameters u0p=u0pt*(1-u0pd)
+include "cmos180n.scs" section=model
+endsection
+
+// Worst one
+section wo
+include "cmos180n.scs" section=dfl
+parameters vth0n=vth0nt*(1-vth0nd)
+parameters u0n=u0nt*(1+u0nd)
+parameters vth0p=vth0pt*(1+vth0pd)
+parameters u0p=u0pt*(1-u0pd)
+include "cmos180n.scs" section=model
+endsection
+
+// Worst zero
+section wz
+include "cmos180n.scs" section=dfl
+parameters vth0n=vth0nt*(1+vth0nd)
+parameters u0n=u0nt*(1-u0nd)
+parameters vth0p=vth0pt*(1-vth0pd)
+parameters u0p=u0pt*(1+u0pd)
+include "cmos180n.scs" section=model
+endsection
+
+
+//********************
+// Parameter defaults
+section dfl
+// Mean parameter values
+parameters vth0nt=0.3999
+parameters u0nt=3.5000000E-02
+parameters vth0pt=-0.42
+parameters u0pt=8.0000000E-03
+
+// Relative parameter variations (process corners)
+parameters vth0nd=0.1
+parameters u0nd=0.06
+parameters vth0pd=0.12
+parameters u0pd=0.1
+endsection
+
+// model definition
+section model
+model nmosmod bsim3v3 type=n                                                              
++ lint = 4.e-08 tox = 4.e-09                                                   
++ vth0 = vth0n rdsw = 250                                                     
++ lmin=1.8e-7 lmax=4u wmin=1.8e-7 wmax=1.0e-4 
++ version =3.1       
++ xj= 6.0000000e-08         nch= 5.9500000e+17                                 
++ lln= 1.0000000            lwn= 1.0000000              wln= 0.00              
++ wwn= 0.00                 ll= 0.00                                           
++ lw= 0.00                  lwl= 0.00                   wint= 0.00             
++ wl= 0.00                  ww= 0.00                    wwl= 0.00              
++ mobmod=  1                binunit= 2                  xl=  0                 
++ xw=  0                    
++ dwg= 0.00                 dwb= 0.00                                          
++ k1= 0.5613000             k2= 1.0000000e-02                                
++ k3= 0.00                  dvt0= 8.0000000             dvt1= 0.7500000        
++ dvt2= 8.0000000e-03       dvt0w= 0.00                 dvt1w= 0.00            
++ dvt2w= 0.00               nlx= 1.6500000e-07          w0= 0.00               
++ k3b= 0.00                 ngate= 5.0000000e+20                               
++ vsat= 1.3800000e+05       ua= -7.0000000e-10          ub= 3.5000000e-18      
++ uc= -5.2500000e-11        prwb= 0.00                                         
++ prwg= 0.00                wr= 1.0000000               u0= u0n      
++ a0= 1.1000000             keta= 4.0000000e-02         a1= 0.00               
++ a2= 1.0000000             ags= -1.0000000e-02         b0= 0.00               
++ b1= 0.00                                                                     
++ voff= -0.12350000         nfactor= 0.9000000          cit= 0.00             
++ cdsc= 0.00                cdscb= 0.00                 cdscd= 0.00            
++ eta0= 0.2200000           etab= 0.00                  dsub= 0.8000000        
++ pclm= 5.0000000e-02       pdiblc1= 1.2000000e-02      pdiblc2= 7.5000000e-03 
++ pdiblcb= -1.3500000e-02   drout= 1.7999999e-02        pscbe1= 8.6600000e+08  
++ pscbe2= 1.0000000e-20     pvag= -0.2800000            delta= 1.0000000e-02   
++ alpha0= 0.00              beta0= 30.0000000                                  
++ kt1= -0.3700000           kt2= -4.0000000e-02         at= 5.5000000e+04      
++ ute= -1.4800000           ua1= 9.5829000e-10          ub1= -3.3473000e-19    
++ uc1= 0.00                 kt1l= 4.0000000e-09         prt= 0.00              
++ cj= 0.00365               mj= 0.54                    pb= 0.982              
++ cjsw= 7.9e-10             mjsw= 0.31                  php= 0.841             
++ cta= 0                    ctp= 0                      pta= 0                 
++ ptp= 0                    js=1.50e-08                 jsw=2.50e-13           
++ n=1.0                     xti=3.0                     cgdo=2.786e-10         
++ cgso=2.786e-10            cgbo=0.0e+00                capmod= 2              
++ nqsmod= 0                 elm= 5                      xpart= 1               
++ cgsl= 1.6e-10             cgdl= 1.6e-10               ckappa= 2.886          
++ cf= 1.069e-10             clc= 0.0000001              cle= 0.6               
++ dlc= 4e-08                dwc= 0                      vfbcv= -1              
+                                                                             
+                                                                              
+model pmosmod bsim3v3 type=p 
++ lint = 3.e-08 tox = 4.2e-09                                                  
++ vth0 = vth0p rdsw = 450                                                      
++ lmin=1.8e-7 lmax=4u wmin=1.8e-7 wmax=1.0e-4 
++ version =3.1
++ xj= 7.0000000e-08         nch= 5.9200000e+17                                 
++ lln= 1.0000000            lwn= 1.0000000              wln= 0.00              
++ wwn= 0.00                 ll= 0.00                                           
++ lw= 0.00                  lwl= 0.00                   wint= 0.00             
++ wl= 0.00                  ww= 0.00                    wwl= 0.00              
++ mobmod=  1                binunit= 2                  xl= 0.00               
++ xw= 0.00                                                                     
++ dwg= 0.00                 dwb= 0.00              
++ acm= 0                    ldif=0.00                   hdif=0.00              
++ rsh= 0                    rd= 0                       rs= 0                  
++ rsc= 0                    rdc= 0                                             
++ k1= 0.5560000             k2= 0.00                                           
++ k3= 0.00                  dvt0= 11.2000000            dvt1= 0.7200000        
++ dvt2= -1.0000000e-02      dvt0w= 0.00                 dvt1w= 0.00            
++ dvt2w= 0.00               nlx= 9.5000000e-08          w0= 0.00               
++ k3b= 0.00                 ngate= 5.0000000e+20                               
++ vsat= 1.0500000e+05       ua= -1.2000000e-10          ub= 1.0000000e-18      
++ uc= -2.9999999e-11        prwb= 0.00                                         
++ prwg= 0.00                wr= 1.0000000               u0= u0p      
++ a0= 2.1199999             keta= 2.9999999e-02         a1= 0.00               
++ a2= 0.4000000             ags= -0.1000000             b0= 0.00               
++ b1= 0.00                                                                     
++ voff= -6.40000000e-02     nfactor= 1.4000000          cit= 0.00             
++ cdsc= 0.00                cdscb= 0.00                 cdscd= 0.00            
++ eta0= 8.5000000           etab= 0.00                  dsub= 2.8000000        
++ pclm= 2.0000000           pdiblc1= 0.1200000          pdiblc2= 8.0000000e-05 
++ pdiblcb= 0.1450000        drout= 5.0000000e-02        pscbe1= 1.0000000e-20  
++ pscbe2= 1.0000000e-20     pvag= -6.0000000e-02        delta= 1.0000000e-02   
++ alpha0= 0.00              beta0= 30.0000000                                  
++ kt1= -0.3700000           kt2= -4.0000000e-02         at= 5.5000000e+04      
++ ute= -1.4800000           ua1= 9.5829000e-10          ub1= -3.3473000e-19    
++ uc1= 0.00                 kt1l= 4.0000000e-09         prt= 0.00              
++ cj= 0.00138               mj= 1.05                    pb= 1.24               
++ cjsw= 1.44e-09            mjsw= 0.43                  php= 0.841             
++ cta= 0.00093              ctp= 0                      pta= 0.00153           
++ ptp= 0                    js=1.50e-08                 jsw=2.50e-13           
++ n=1.0                     xti=3.0                     cgdo=2.786e-10         
++ cgso=2.786e-10            cgbo=0.0e+00                capmod= 2              
++ nqsmod= 0                 elm= 5                      xpart= 1               
++ cgsl= 1.6e-10             cgdl= 1.6e-10               ckappa= 2.886          
++ cf= 1.058e-10             clc= 0.0000001              cle= 0.6               
++ dlc= 3e-08                dwc= 0                      vfbcv= -1              
+endsection model
+
+section unused
+.model pnp5 pnp (                                   level  = 1
++ bf     = 2.775           nf     = 0.9928534       is     = 2.5351e-18
++ ise    = 2.5351e-18      isc    = 2.5351e-18      ne     = 1.3977142
++ rb     = 54.76734        irb    = 1.401332e-3     rbm    = 1.0965611
++ re     = 1.3979963       ikf    = 8.2254e-4       nkf    = 0.477972
++ vaf    = 372.731         br     = 4.4013e-3       nr     = 0.993881
++ nc     = 0.98076         rc     = 20.08           ikr    = 1.98804e-4
++ var    = 20.84541        xti    = 3               eg     = 1.17
++ xtb    = 0               trb1   = 1.493714e-3     tirb1  = 1.375303e-5
++ trm1   = 1.074565e-5     tre1   = 1.068665e-4     tikf1  = -2.512025e-3
++ tikr1  = -3.93e-3        trc1   = 8e-5            tbf1   = 4.9e-3
++ tbf2   = 1.1e-6          tnf1   = -1.056025e-4    tne1   = 2.152336e-4
++ tvaf1  = -4e-5           tbr1   = -1.01e-3        tbr2   = 1.3e-5
++ tnc1   = 1.122277e-4     tnc2   = 0               tnr1   = -1.026101e-4
++ tnr2   = 0               cje    = 3.2987e-14      vje    = 0.895226
++ mje    = 0.4345495       fc     = 0               cjc    = 3.965229e-14
++ vjc    = 0.5846489       mjc    = 0.2933243       tlev   = 0
++ tlevc  = 1               cte    = 2.0325e-3       ctc    = 8.900197e-4
++ tvje   = 1.572025e-3     tvjc   = 2.819e-3        tref   = 25
++ subs   = 1               )
+*
+.model pnp10 pnp (                                  level  = 1
++ bf     = 2.715           nf     = 0.9931534       is     = 9.0353e-18
++ ise    = 9.0353e-18      isc    = 9.0353e-18      ne     = 1.2977142
++ rb     = 36.063401       irb    = 1.401332e-3     rbm    = 1.0965611
++ re     = 1.3979963       ikf    = 1.72254e-3      nkf    = 0.477972
++ vaf    = 361.145         br     = 0.0114433       nr     = 0.9908706
++ nc     = 0.9007513       rc     = 20.08           ikr    = 1.98804e-4
++ var    = 20.84541        xti    = 3               eg     = 1.17
++ xtb    = 0               trb1   = 1.493714e-3     tirb1  = 1.375303e-5
++ trm1   = 1.074565e-5     tre1   = 1.068665e-4     tikf1  = -3.912025e-3
++ tikr1  = -3.93e-3        trc1   = 8e-5            tbf1   = 4.91e-3
++ tbf2   = 1e-6            tnf1   = -1.0025e-4      tne1   = 2.00234e-4
++ tvaf1  = -5e-3           tbr1   = -3.15e-3        tbr2   = 3.5e-5
++ tnc1   = 8.022278e-5     tnc2   = 0               tnr1   = -2.025978e-4
++ tnr2   = 0               cje    = 1.22024e-13     vje    = 0.895226
++ mje    = 0.4405495       fc     = 0               cjc    = 6.837658e-14
++ vjc    = 0.5846489       mjc    = 0.3033243       tlev   = 0
++ tlevc  = 1               cte    = 9.300197e-4     ctc    = 2.1425e-3
++ tvje   = 1.572025e-3     tvjc   = 2.819e-3        tref   = 25
++ subs   = 1               )
+*
+.model pnp2 pnp (                                   level  = 1
++ bf     = 2.7551          nf     = 1.006853        is     = 8.03515e-19
++ ise    = 8.03515e-19     isc    = 8.03515e-19     ne     = 1.2977142
++ rb     = 102.76734       irb    = 1.401332e-3     rbm    = 1.0965611
++ re     = 1.297997        ikf    = 3.02541e-4      
+* nkf    = 0.427981
++ vaf    = 126.168         br     = 1.3713e-3       nr     = 0.993671
++ nc     = 0.920748        rc     = 20.08           ikr    = 1.98804e-4
++ var    = 15.6151         xti    = 3               eg     = 1.17
++ xtb    = 0               
+* trb1   = 1.493714e-3     tirb1  = 1.375303e-5
+* + trm1   = 1.074565e-5     tre1   = 1.068665e-4     tikf1  = -4.31203e-3
+* + tikr1  = -3.93e-3        trc1   = 8e-5            tbf1   = 5.85e-3
+* + tbf2   = 3e-6            tnf1   = -1.056025e-4    tne1   = 2.152336e-4
+* + tvaf1  = -1e-3           tbr1   = -1.5e-3         tbr2   = 1.85e-5
+* + tnc1   = 1.122198e-4     tnc2   = 0               tnr1   = -2.425601e-4
+* + tnr2   = 0               
++ cje    = 6.4688e-15      vje    = 0.895226
++ mje    = 0.4205495       fc     = 0               cjc    = 2.562787e-14
++ vjc    = 0.5846489       mjc    = 0.2833243       
+* tlev   = 0
+* + tlevc  = 1               cte    = 8.000197e-4     ctc    = 1.9025e-3
+* + tvje   = 1.572025e-3     tvjc   = 2.819e-3        tref   = 25
++ subs   = 1               )
+*
+endsection unused
+
+endlibrary ptm18

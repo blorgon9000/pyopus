@@ -1,5 +1,5 @@
-:mod:`pyopus.parallel` --- Parallel computation support
-=======================================================
+:mod:`pyopus.parallel` --- Parallel processing support
+======================================================
 
 .. automodule:: pyopus.parallel
 
@@ -7,6 +7,8 @@
    :maxdepth: 2
    
    parallel.base.rst
-   parallel.pvm.rst
-   parallel.pypvm.rst
+   parallel.mpi.rst
+   parallel.cooperative.rst
    parallel.evtdrvms.rst
+   parallel.jobdispatch.rst
+

@@ -1,0 +1,16 @@
+This folder shows you how to use various optimizers. 
+
+Some more complex exampels have their own subfolders. 
+
+The order in which you study these examples is not important. 
+
+Some examples (psade.py and de.py) demonstrate parallel algorithms 
+in a parallel environment (MPI). To run them with parallel 
+processing enabled, type
+
+mpirun -n <number of processes> python <example>.py
+
+To run the problems across multiple machines the set of hosts must 
+be defined in hosts.openmpi. Tu run an example, type 
+
+mpirun -hostfile hosts.openmpi -n <number of processes> python <example>.py

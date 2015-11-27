@@ -1,4 +1,4 @@
-# -*- coding: cp1250 -*-
+# -*- coding: UTF-8 -*-
 
 """
 .. inheritance-diagram:: pyopus.optimizer.psade
@@ -11,116 +11,29 @@ SADE stands for Simulated Annealing with Differential Evolution.
 
 A provably convergent (parallel) global optimization algorithm. 
 
-The algorithm was published in 
+The algorithm was published in [psade]_. 
 
-Olen�ek J., Tuma T., Puhan J., Buermen A.: A new asynchronous parallel 
-global optimization meth od based on simulated annealing and differential 
-evolution. Applied Soft Computing Journal, vol. 11, pp. 1481-1489, 2011. 
+.. [psade] Olenšek J., Tuma T., Puhan J., Bűrmen Á.: A new asynchronous parallel 
+           global optimization meth od based on simulated annealing and differential 
+           evolution. Applied Soft Computing Journal, vol. 11, pp. 1481-1489, 2011. 
 """
 
 from ..misc.debug import DbgMsgOut, DbgMsg
-from base import BoxConstrainedOptimizer
-from ..parallel.evtdrvms import EventDrivenMS, MsgSlaveStarted, MsgStartup, MsgIdle
-from ..parallel.base import Msg, MsgTaskExit
+from base import BoxConstrainedOptimizer, normalizer, denormalizer
+from ..parallel.cooperative import cOS
 
-from numpy import array, concatenate, arange, zeros, random, isfinite, log, exp, tan, pi
+from numpy import array, concatenate, arange, zeros, random, isfinite, log, exp, tan, pi, concatenate, reshape
 from numpy.random import permutation, rand
 from time import sleep, time
 
-__all__ = [ 'MsgEvaluatePoint', 'MsgEvaluateGlobal', 'MsgEvaluateLocal', 
-			'MsgResult', 'MsgGlobalResult', 'MsgLocalResult', 'ParallelSADE' ] 
-
-class MsgEvaluatePoint(Msg):
-	"""
-	A message requesting the evaluation of a normalized point *x*. 
-	"""
-	def __init__(self, x):
-		Msg.__init__(self)
-		self.x=x
-
-class MsgResult(Msg):
-	"""
-	A message holding the result of the evaluation of a normalized point *x*. 
-	
-	*f* is the result of the cost function evaluation while *annotations* 
-	holds the corresponding annotations. 
-	"""
-	def __init__(self, x, f, annotations=None):
-		Msg.__init__(self)
-		self.x=x
-		self.f=f
-		self.annotations=annotations
-
-class MsgEvaluateGlobal(Msg):
-	"""
-	A message requesting the evaluation of a global search step. 
-	
-	*xip* is the parent normalized point, *xi1* is the first of the two 
-	normalized points that competed for better T and R parameters. *delta1* and 
-	*delta2* are the two differential vectors used by the differential 
-	evolution operator. *R* is the range parameter used for generating 
-	the random step. *w* and *px* are the differential operator weight and the 
-	crossover probability. 
-	"""
-	def __init__(self, xip, xi1, delta1, delta2, R, w, px):
-		Msg.__init__(self)
-		self.xip=xip
-		self.xi1=xi1
-		self.delta1=delta1
-		self.delta2=delta2
-		self.R=R
-		self.w=w
-		self.px=px
-
-class MsgEvaluateLocal(Msg):
-	"""
-	A message requesting the evaluation of a local search step. 
-	
-	*xa* and *fa* are a normalized point and its corresponding cost function 
-	value. *delta* is the search direction. 
-	"""
-	def __init__(self, xa, fa, delta):
-		Msg.__init__(self)
-		self.xa=xa
-		self.fa=fa
-		self.delta=delta
-
-class MsgGlobalResult(MsgResult):
-	"""
-	A message holding the results of a global step. 
-	
-	*x* is the evaluated normalized point and *f* is the corresponding cost 
-	function value. *annotations* (if not ``None``) holds the annotations 
-	corresponding to the evaluated point. 
-	"""
-	
-	def __init__(self, x, f, annotations=None):
-		Msg.__init__(self)
-		self.x=x
-		self.f=f
-		self.annotations=annotations
-		
-class MsgLocalResult(Msg):
-	"""
-	A message holding the results of a local step. 
-	*x* is a tuple holding the evaluated normalized points and *f* is a tuple 
-	of corresponding cost function values. *annotations* (if not ``None``) is a 
-	tuple holding the annotations corresponding to the evaluated points. All 
-	three tuples must be of the same length. 
-	"""
-	def __init__(self, x, f, annotations=None):
-		Msg.__init__(self)
-		self.x=x
-		self.f=f
-		self.annotations=annotations		
+__all__ = [ 'ParallelSADE' ] 
 
 
-class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
+class ParallelSADE(BoxConstrainedOptimizer):
 	"""
 	Parallel SADE global optimizer class
 	
-	If *debug* is above 1, the *debug* option of the :class:`EventDrivenMS` 
-	class is set to 1. 
+	If *debug* is above 0, debugging messages are printed. 
 	
 	The lower and upper bound (*xlo* and *xhi*) must both be finite. 
 	
@@ -136,28 +49,21 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 	*wmin*, *wmax*, *pxmin*, and *pxmax* are the lower and upper bounds for 
 	the differential evolution's weight and crossover probability parameters. 
 	
-	If a virtual machine object is passed in the *vm* argument the algorithm 
-	runs in parallel on the virtual machine represented by *vm*. The algorithm 
-	can also run locally (*vm* set to ``None``). 
-	
-	The algorithm is capable of handling notification messages received when a 
-	slave fails or a new host joins the virtual machine. In the first case the 
-	work that was performed by the failed slave is reassigned. In the second 
-	case new slaves are spawned. The latter is performed by the handler in the 
-	:class:`EventDrivenMS` class. Work is assigned to new slaves when the 
-	algorithm detects that they are idle. 
-	
 	All operations are performed on normalized points ([0,1] interval 
 	corresponding to the range defined by the bounds). 
 	
-	See the :class:`~pyopus.optimizer.base.BoxConstrainedOptimizer` and the 
-	:class:`~pyopus.parallel.evtdrvms.EventDrivenMS` classes for more 
+	If *spawnerLevel* is not greater than 1, evaluations are distributed across 
+	available computing nodes (that is unless task distribution takes place at 
+	a higher level). 
+	
+	See the :class:`~pyopus.optimizer.base.BoxConstrainedOptimizer` for more 
 	information. 
 	"""
 	def __init__(self, function, xlo, xhi, debug=0, fstop=None, maxiter=None, 
-					vm=None, maxSlaves=None, minSlaves=0, 
-					populationSize=20, pLocal=0.01, Tmin=1e-10, Rmin=1e-10, Rmax=1.0, 
-					wmin=0.5, wmax=1.5, pxmin=0.1, pxmax=0.9):
+		populationSize=20, pLocal=0.01, Tmin=1e-10, Rmin=1e-10, Rmax=1.0, 
+		wmin=0.5, wmax=1.5, pxmin=0.1, pxmax=0.9, 
+		minSlaves=1, maxSlaves=None, spawnerLevel=1
+	):
 		
 		BoxConstrainedOptimizer.__init__(self, function, xlo, xhi, debug, fstop, maxiter)
 		
@@ -166,11 +72,6 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 		else:
 			debugEvt=0
 			
-		# This will call the fillHandlerTable() method of ParallelSADE. 
-		EventDrivenMS.__init__(self, vm=vm, maxSlaves=maxSlaves, minSlaves=minSlaves, 
-								debug=debugEvt, 
-								slaveIdleMessages=True, localIdleMessages=True)
-
 		# Number of variables is the number of dimensions
 		
 		# Pupulation size
@@ -226,22 +127,26 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 		
 		# Which population point to send out next. This is for master's use. 
 		self.ip=None
+		
+		self.spawnerLevel=spawnerLevel
+		self.minSlaves=minSlaves
+		self.maxSlaves=maxSlaves
 	
-	def initialPopulation(self):
+	def initialPopulation(self, Np):
 		"""
-		Constructs and returns the initial population. 
+		Constructs and returns the initial population with *Np* members. 
 		"""
 		# Random permutations of Np subintervals for every variable
 		# One column is one variable (it has Np rows)
-		perm=zeros([self.Np, self.ndim])
+		perm=zeros([Np, self.ndim])
 		for i in range(self.ndim):
-			perm[:,i]=(permutation(self.Np))
+			perm[:,i]=(permutation(Np))
 		
 		# Random relative interval coordinates (0,1)
-		randNum=rand(self.Np, self.ndim)
+		randNum=rand(Np, self.ndim)
 		
 		# Build Np points from random subintervals
-		return self.denormalize((perm+randNum)/self.Np)
+		return self.denormalize((perm+randNum)/Np)
 		
 	def initialTempRange(self):
 		"""
@@ -463,10 +368,12 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 				
 		return False, ipIsBest
 	
-	def localStep(self, xa, fa, d):
+	@classmethod
+	def localStep(cls, xa, fa, d, origin, scale, evf, args):
 		"""
 		Performs a local step starting at normalized point *xa* with the 
 		corresponding cost function value *fa* in direction *d*. 
+		Runs remotely. 
 		
 		The local step is performed with the help of a quadratic model. Two or 
 		three additional points are evaluated. 
@@ -493,8 +400,11 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 			count+=1
 		
 		# Evaluate f(xb), store annotations
-		fb=self.fun(self.denormalize(xb))
-		ab=self.annotations
+		# fb=self.fun(self.denormalize(xb))
+		args[0]=denormalizer(xb, origin, scale)
+		fb,ab=evf(*args)
+		#fb=self.fun()
+		#ab=self.annotations
 		
 		# Direction of decrease
 		if fb<fa:
@@ -523,8 +433,10 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 		dc=dc+doffs
 		
 		# Evaluate f(xc)
-		fc=self.fun(self.denormalize(xc))
-		ac=self.annotations
+		args[0]=denormalizer(xc, origin, scale)
+		fc,ac=evf(*args)
+		# fc=self.fun(self.denormalize(xc))
+		# ac=self.annotations
 		
 		# Quadratic model
 		# dd:  0  db dc
@@ -564,8 +476,10 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 					count+=1
 			
 			# Evaluate f(xd)
-			fd=self.fun(self.denormalize(xd))
-			ad=self.annotations
+			args[0]=denormalizer(xd, origin, scale)
+			fd,ad=evf(*args)
+			# fd=self.fun(self.denormalize(xd))
+			# ad=self.annotations
 			
 			# Return evaluated points
 			f=zeros(3)
@@ -580,420 +494,211 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 			f[1]=fc
 			return ((xb, xc), f, (ab, ac))
 	
-	# For pickling
-	def __getstate__(self):
-		state=self.__dict__.copy()
-		del state['handler']
-		
-		return state
-	
-	# For unpickling
-	def __setstate__(self, state):
-		self.__dict__.update(state)
-		
-		self.handler={}
-		self.fillHandlerTable()
-		
-	def fillHandlerTable(self):
-		"""
-		Fills the handler table of the 
-		:class:`~pyopus.parallel.evtdrvms.EventDrivenMS` object 
-		with the handlers that take care of the PSADE's messages. 
-		"""
-		# Parent class' messages
-		EventDrivenMS.fillHandlerTable(self)
-		
-		# Idle message is listed in EventDrivenMS.fillHandlerTable()
-		# Here we only override its handler. 
-		
-		# Other messages (master), allow only from started tasks
-		self.addHandler(MsgResult, self.handleResult, self.allowStarted)
-		self.addHandler(MsgGlobalResult, self.handleGlobalResult, self.allowStarted)
-		self.addHandler(MsgLocalResult, self.handleLocalResult, self.allowStarted)
-				
-		# Slave's messages, allow only from all (default)
-		self.addHandler(MsgEvaluatePoint, self.handleEvaluatePoint)
-		self.addHandler(MsgEvaluateGlobal, self.handleEvaluateGlobal)
-		self.addHandler(MsgEvaluateLocal, self.handleEvaluateLocal)
-	
-	#
-	# Message handlers
-	# 
-	
-	def handleSlaveStarted(self, source, message): 
-		"""
-		Handles the MsgSlaveStarted message received by the master from a 
-		freshly started slave. Does nothing special, just calls the inherited 
-		handler from the :class:`EventDrivenMS` class. 
-		"""
-		# Debug message
-		if self.debug:
-			DbgMsgOut("PSADEOPT", "Task "+str(source)+" is up.") 
-		
-		# Call parent's method
-		return EventDrivenMS.handleSlaveStarted(self, source, message)
-	
-	def handleTaskExit(self, source, message):
-		"""
-		Handles a notification message reporting that a slave has failed 
-		(is down). 
-		
-		Stores the work that was performed at the time the slave failed so it 
-		can later be reassigned to some other slave. 
-		"""
-		# Get ID
-		id=message.taskID
-		
-		# Are we evaluating the initial population
-		if len(self.pointsForEvaluation)+len(self.pointsBeingEvaluated)>0:
-			# Mark point as unevaluated, remove it from the set of points being evaluated
-			taskStorage=self.taskStorage(id)
-			if taskStorage is not None and 'ip' in taskStorage: 
-				ip=taskStorage['ip']
-				self.pointsBeingEvaluated.discard(ip)
-				self.pointsForEvaluation.add(ip)
-			
-			# Debug message
+	# Generate evaluators for points from the initial population
+	def initPopJobGen(self):
+		for ii in range(self.population.shape[0]):
 			if self.debug:
-				DbgMsgOut("PSADEOPT", "Task "+str(id)+" down while evaluating initial population. Reassigned point "+str(ip))
-			
-		# Call parent's method that will remove the task's structures
-		EventDrivenMS.handleTaskExit(self, source, message)
+				DbgMsgOut("PSADEOPT", "Inital point evaluation #%d" % ii)
+			x=self.denormalize(self.population[ii,:])
+			yield self.getEvaluator(x)
 	
-	def handleStartup(self, source, message): 
-		"""
-		Handles a :class:`MsgStartup` message received by master/slave when the 
-		event loop is entered. 
-		
-		Performs some initializations on the master and prevents the plugins 
-		in the slave from printing messages. 
-		"""
-		# Are we the master
-		if message.isMaster:
-			# Master
-			# Initialize sets
-			self.pointsForEvaluation=set(range(self.Np))
-			self.pointsBeingEvaluated=set()
-			
+	# Handle the result of an initial population point evaluation
+	def initPopJobCol(self):
+		while True:
+			index, job, retval = (yield)
+			evf, args = job
+			x=args[0]
 			if self.debug:
-				DbgMsgOut("PSADEOPT", "Master started.") 
-		else:
-			# Slave
-			# Make plugins quiet - we are the worker, we only forward stuff to the master
-			for plugin in self.plugins:
-				plugin.setQuiet(True)
-			
-			# Debug message
-			if self.debug:
-				DbgMsgOut("PSADEOPT", "Slave started.") 
-		
-		# Call parent's method
-		return EventDrivenMS.handleStartup(self, source, message)
+				DbgMsgOut("PSADEOPT", "Inital point evaluation result received #%d" % index)
+			f, annot = retval
+			self.newResult(x, f, annot)
+			self.fpopulation[index]=f
 	
-	def handleIdle(self, source, message):
+	def run(self):
 		"""
-		Handles a :class:`MsgIdle` message. 
-		
-		Distributes work to the slaves. 
-		
-		In the beginning the initial population is evaluated in parallel 
-		(if possible) by sending class:`MsgEvaluatePoint` messages to slaves. 
-		
-		After the initial population was evaluated it distributes 
-		:class:`MsgEvaluateGlobal` messages to slaves. 
+		Run the algorithm. 
 		"""
-		# Are we in initial mode
-		if len(self.pointsForEvaluation)+len(self.pointsBeingEvaluated)>0:
-			# Evaluating initial population
+		# Reset stop flag of the Optimizer class
+		self.stop=False
+				
+		# Evaluate initial population in parallel
+		cOS.dispatch(
+			jobList=self.initPopJobGen(), 
+			collector=self.initPopJobCol(), 
+			remote=self.spawnerLevel<=1
+		)
+		
+		# Set the parent point index to 0
+		self.ip=0
 			
-			# Find an unevaluated point (status 0=unevaluated, 1=in evaluation, 2=evaluated)
-			if len(self.pointsForEvaluation)>0:
-				# Points available, pop one
-				ip=self.pointsForEvaluation.pop()
+		# Initialize temperatures and range parameters
+		self.initialTempRange()
+		
+		# Main loop
+		tidStatus={} # Status storage
+		# Run until stop flag set and all tasks are joined
+		while not (self.stop and len(tidStatus)==0):
+			# Spawn initial tasks if slots are available and maximal number of tasks is not reached
+			# Spawn one task if there are no tasks
+			while (
+				# Spawn global search if stop flag not set
+				not self.stop and (
+					# no tasks running, need at least one task, spawn
+					len(tidStatus)==0 or 
+					# too few slaves in a parallel environment, force spawn regardless of free slots
+					(cOS.slots()>0 and len(tidStatus)<self.minSlaves) or 
+					# free slots available and less than maximal slaves, spawn
+					(cOS.freeSlots()>0 and (self.maxSlaves is None or len(tidStatus)<self.maxSlaves)) 
+				)
+			):
+				# Contest for better temperature and range parameters
+				self.contest(self.ip)
+
+				# Choose control parameters
+				itR = self.selectControlParameters()
+							
+				# Get parent point
+				xip=self.population[self.ip,:]
+
+				# Generate trial point prerequisites
+				(xi1, delta1, delta2) = self.generateTrialPrerequisites()
+
+				# Generate trial point
+				xt=self.generateTrial(xip, xi1, delta1, delta2, self.R[itR], self.w[itR], self.px[itR])
 				
-				# Mark it being evaluated
-				self.pointsBeingEvaluated.add(ip)
+				# Prepare evaluator
+				evaluator=self.getEvaluator(self.denormalize(xt))
 				
-				# Note that slave is processing point 'ip'
-				self.taskStorage(message.taskID)['ip']=ip
+				# Spawn a global search task
+				tid=cOS.Spawn(evaluator[0], args=evaluator[1], remote=self.spawnerLevel<=1, block=True)
 				
-				# Take the point
-				x=self.population[ip,:]
+				# Store the job
+				tidStatus[tid]={
+					'itR': itR, 
+					'ip': self.ip, 
+					'global': True, 
+					'xt': xt.copy(), # normalized point
+					'job': evaluator, 
+				}
+				
+				# Go to next parent
+				self.ip = (self.ip + 1) % self.Np
+				
+				if self.debug:
+					DbgMsgOut("PSADEOPT", "Started global search, task "+str(tid))
+					
+				# If there are no free slots left, stop spawning
+				if cOS.freeSlots()<=0:
+					break
+
+			
+			# Join task
+			tid,retval = cOS.Join(block=True).popitem()
+			st=tidStatus[tid]
+			del tidStatus[tid]
+			
+			# Get stored information
+			itR=st['itR']
+			ip=st['ip']
+				
+			# What was it running?
+			if st['global']:
+				# Global search finished
+				evf, args = st['job']
+				xdn=args[0] # denormalized point
+				f, annot = retval
+				xt=st['xt']
+				
+				if self.debug:
+					DbgMsgOut("PSADEOPT", "Received global search result from task "+str(tid))
+		
+				# Register result
+				self.newResult(xdn, f, annot)
+				
+				# Accept point
+				(accepted, ipIsBest)=self.accept(xt, f, ip, itR)
+				
+				self.parentCount[ip]+=1
 				
 				# Debug message
-				if self.debug:
-					DbgMsgOut("PSADEOPT", "Sending initial population point "+str(ip)+" to task "+str(message.taskID))
-				
-				# Prepare EvaluatePoint message
-				return [(message.taskID, MsgEvaluatePoint(x))]
+				if self.debug and accepted:
+					DbgMsgOut("PSADEOPT", "Global search point accepted, isBest=%d" % ipIsBest)
+					
+				# Do we want local search
+				if accepted or ipIsBest or rand(1)[0]<self.pLocal:
+					# Local search
+			
+					# Choose two random points
+					rp=permutation(self.Np)
+					i1=rp[0]
+					i2=rp[1]
+					
+					# Points
+					xi1=self.population[i1,:]
+					xi2=self.population[i2,:]
+					
+					# Difference vector
+					delta=(xi1-xi2)
+					
+					# Origin
+					xa=self.population[ip,:]
+					fa=self.fpopulation[ip]
+					
+					# Spawn a local search task
+					tid=cOS.Spawn(
+						self.localStep, 
+						args=[xa, fa, delta, self.normOrigin, self.normScale, evf, args], 
+						remote=self.spawnerLevel<=1, 
+						block=True
+					)
+					
+					# Store the job
+					st['global']=False
+					tidStatus[tid]=st
+					
+					# Debug message
+					if self.debug: 
+						DbgMsgOut("PSADEOPT", "Started local search, task "+str(tid))
 			else:
-				# Nothing more to evaluate
-				return []
-		else:
-			# Algorithm running, request a global search point evaluation
-			
-			# Contest for better temperature and range parameters
-			self.contest(self.ip)
-			
-			# Choose control parameters
-			itR = self.selectControlParameters()
+				# Local search finished
+				if retval is None:
+					# Local step failed
+					if self.debug:
+						DbgMsgOut("PSADEOPT", "Local step failed, task "+str(tid))
+				else:
+					# Local step OK
+					if self.debug:
+						DbgMsgOut("PSADEOPT", "Received local search points from task "+str(tid))
+				
+					# Unpack results
+					x,f,annot = retval
+					
+					# Get parent
+					xip=self.population[ip,:]
+					fip=self.fpopulation[ip]
+					
+					# Sort function values (lowest f last), get indices
+					ndx=(f.argsort())[-1::-1]
+					
+					# Register results
+					for ii in ndx:
+						self.newResult(self.denormalize(x[ii]), f[ii], annot[ii])
+		
+					# Is the best point better than parent
+					ibest=ndx[-1]
+					if f[ibest]<fip:
+						# Yes, replace parent
+						self.population[ip,:]=x[ibest]
+						self.fpopulation[ip]=f[ibest]
 						
-			# Get parent point
-			xip=self.population[self.ip,:]
-			
-			# Remember control parameters index and parent index
-			taskStorage=self.taskStorage(message.taskID)
-			taskStorage['itR']=itR
-			taskStorage['ip']=self.ip
-			
-			# Generate trial point prerequisites
-			(xi1, delta1, delta2) = self.generateTrialPrerequisites()
-			
-			# Go to next parent
-			self.ip = (self.ip + 1) % self.Np
-			
-			# Debug message
-			if self.debug:
-				DbgMsgOut("PSADEOPT", "Sending global search point to task "+str(message.taskID))
-			
-			# Generate a point and send it to worker
-			return [(message.taskID, MsgEvaluateGlobal(xip, xi1, delta1, delta2, self.R[itR], self.w[itR], self.px[itR]))]
-			
-	def handleEvaluatePoint(self, source, message):
-		"""
-		Handles :class:`MsgEvaluatePoint` messages received by slaves during 
-		the evaluation of the initial population. Evaluates the received point 
-		and sends back a :class:`MsgResult` message. 
-		"""
-		# Evaluate
-		x=message.x
-		f=self.fun(self.denormalize(x))
-		return [(source, MsgResult(x, f, self.annotations))]
+						self.localAcc+=1
+						
+						# Debug message
+						if self.debug:
+							DbgMsgOut("PSADEOPT", "Replacing parent with local step result.")
+					else:
+						self.localRej+=1
 	
-	def handleEvaluateGlobal(self, source, message):
-		"""
-		Handles :class:`MsgEvaluateGlobal` messages reeived by slaves when the 
-		algorithm is running. Performs a global step and returns a 
-		:class:`MsgGlobalResult` message with the evaluated trial point. 
-		"""
-		# Generate global search point
-		xt=self.generateTrial(message.xip, message.xi1, message.delta1, message.delta2, message.R, message.w, message.px)
-		
-		# Evaluate
-		ft=self.fun(self.denormalize(xt))
-		return [(source, MsgGlobalResult(xt, ft, self.annotations))]
-		
-	def handleEvaluateLocal(self, source, message):
-		"""
-		Handles :class:`MsgEvaluateLocal` points received by slaves when the 
-		algorithm is running. Performs a local step and returns a 
-		:class:`MsgLocalResult` message with the evaluated points. If the local 
-		step is a failure, the points, cost function values, and annotations 
-		are all ``None``. 
-		"""
-		# Do local search
-		xa=message.xa
-		fa=message.fa
-		delta=message.delta
-		
-		# Do local step (perform evaluations)
-		localResults=self.localStep(xa, fa, delta)
-		
-		# Send result message
-		if localResults is not None:
-			return [(source, MsgLocalResult(*localResults))]
-		else:
-			return [(source, MsgLocalResult(None, None, None))]
-	
-	def handleResult(self, source, message): 
-		"""
-		Handles a :class:`MsgResult` message and takes care of the evaluation 
-		result. These messages are used only during the evaluation of the 
-		initial population. 
-		
-		Marks the slave that sent the message as idle so that new work can be 
-		assigned to it by the :class:`MsgIdle` message handler. 
-		"""
-		x=message.x
-		f=message.f
-		annotations=message.annotations
-		
-		ip=self.taskStorage(source)['ip']
-			
-		if self.debug:
-			DbgMsgOut("PSADEOPT", "Received initial population point "+str(ip)+" from task "+str(source))
-			
-		# If the message was sent from None (local mode) this stuff got handled in self.fun()
-		if source is not None:
-			# Handle new result
-			self.newResult(self.denormalize(x), f, annotations)
-		
-		# Put the result in fpopulation
-		self.fpopulation[ip]=f
-		
-		# Remove point from the set of points being evaluated
-		self.pointsBeingEvaluated.discard(ip)
-		
-		# Are we done with the initial population
-		if len(self.pointsForEvaluation)+len(self.pointsBeingEvaluated)==0:
-			# Yes, set the parent point index to 0
-			self.ip=0
-			
-			# Initialize temperatures and range parameters
-			self.initialTempRange()
-		
-		# Exit loop if stopping condition satisfied
-		if self.stop:
-			self.exitLoop=True
-			
-		# Mark slave as idle - end message chain
-		self.markSlaveIdle(source, True)
-		
-		# No response to this message
-		return []
-	
-	def handleGlobalResult(self, source, message): 
-		"""
-		Handles a :class:`MsgGlobalresult` with the result of a global step. 
-		Takes care of accepting the point into teh population and decides 
-		whether a local step should be taken. In case a local step is needed it 
-		responds with a :class:`MsgEvaluateLocal` message sent to the slave 
-		that was performing the global search. 
-		
-		If no local step is taken marks the slave as idle so that new work can 
-		be assigned to it by the :class:`MsgIdle` message handler. 
-		"""
-		x=message.x
-		f=message.f
-		annotations=message.annotations
-		
-		# Debug message
-		if self.debug:
-			DbgMsgOut("PSADEOPT", "Received global search point from task "+str(source))
-		
-		# Get parent, temperature, wS, and pS
-		taskStorage=self.taskStorage(source)
-		ip=taskStorage['ip']
-		itR=taskStorage['itR']
-			
-		# If the message was sent from None (local mode) this stuff got handled in self.fun()
-		if source is not None:
-			# Handle new result
-			self.newResult(self.denormalize(x), f, annotations)
-		
-		# Accept point
-		(accepted, ipIsBest)=self.accept(x, f, ip, itR)
-		
-		self.parentCount[ip]+=1
-		
-		# Debug message
-		if self.debug and accepted:
-			DbgMsgOut("PSADEOPT", "Global search point accepted.")
-		
-		# Exit loop if stopping condition satisfied
-		if self.stop:
-			self.exitLoop=True
-		
-		# Do we want local search
-		if accepted or ipIsBest or rand(1)[0]<self.pLocal:
-			# Local search
-			
-			# Debug message
-			if self.debug: 
-				DbgMsgOut("PSADEOPT", "Starting local search.")
-			
-			# Choose two random points
-			rp=permutation(self.Np)
-			i1=rp[0]
-			i2=rp[1]
-			
-			# Points
-			xi1=self.population[i1,:]
-			xi2=self.population[i2,:]
-			
-			# Difference vector
-			delta=(xi1-xi2)
-			
-			# Origin
-			xa=self.population[ip,:]
-			fa=self.fpopulation[ip]
-			
-			# Send message
-			return [(source, MsgEvaluateLocal(xa, fa, delta))]
-		else:
-			# No local search
-			
-			# Mark slave as idle - end message chain
-			self.markSlaveIdle(source, True)
-			
-			# No response to this message
-			return []
-	
-	def handleLocalResult(self, source, message): 
-		"""
-		Handles a :class:`MsgLocalresult` message with the results of a local 
-		step. Takes care of accepting the point in the population and marks the 
-		slave that sent the message as idle so that new work can be assigned to 
-		it by the :class:`MsgIdle` message handler. 
-		"""
-		f=message.f
-		x=message.x
-		annotations=message.annotations
-		
-		# Was local step successfull
-		if f is None:
-			# Local step failed
-			
-			# Debug message
-			if self.debug:
-				DbgMsgOut("PSADEOPT", "Local step failed, task "+str(source))
-		else:
-			# Handle results
-				
-			# Debug message
-			if self.debug:
-				DbgMsgOut("PSADEOPT", "Received local search points from task "+str(source))
-			
-			# Get parent
-			ip=self.taskStorage(source)['ip']
-			xip=self.population[ip,:]
-			fip=self.fpopulation[ip]
-		
-			# Sort function values (lowest f last), get indices
-			ndx=(f.argsort())[-1::-1]
-		
-			# If the message was sent from None (local mode) this stuff got handled in self.fun()
-			if source is not None:
-				for i in ndx:
-					# Handle new result
-					self.newResult(self.denormalize(x[i]), f[i], annotations[i])
-			
-			# Is the best point better than parent
-			ibest=ndx[-1]
-			if f[ibest]<fip:
-				# Yes, replace parent
-				self.population[ip,:]=x[ibest]
-				self.fpopulation[ip]=f[ibest]
-				
-				self.localAcc+=1
-				
-				# Debug message
-				if self.debug:
-					DbgMsgOut("PSADEOPT", "Replacing parent with local step result.")
-			else:
-				self.localRej+=1
-			
-		# Mark slave as idle - end message chain
-		self.markSlaveIdle(source, True)
-		
-		# Exit loop if stopping condition satisfied
-		if self.stop:
-			self.exitLoop=True
-			
-		# No response to this message
-		return []
-		
-		
 	def check(self):
 		"""
 		Checks the optimization algorithm's settings and raises an exception if 
@@ -1016,22 +721,26 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 		"""
 		Puts the optimizer in its initial state. 
 		
-		If the initial point *x* is a 1-dimensional array or list, it is 
-		ignored. It must, however, match the dimension of the bounds. 
-		
 		If it is a 2-dimensional array or list the first index is the initial 
 		population member index while the second index is the component index. 
 		The initial population must lie within bounds *xlo* and *xhi* and have 
 		*populationSize* members. 
 		
-		If *x* is ``None`` the initial population is generated automatically. 
+		If the initial point *x0* is a 1-dimensional array or list, Np-1 
+		population members are generated. Point *x0* is the Np-th member. 
 		See the :meth:`initialPopulation` method. 
+		
+		If *x0* is ``None`` the Np members of the initial population are 
+		generated automatically. 
 		"""
 		if x0 is None:
+			# No initial point
+			noInitialPoint=True
 			x0=zeros(len(self.xlo))
 			self.bound(x0)
 		else:
-			# Make it an array
+			# Initial point/population given
+			noInitialPoint=False
 			x0=array(x0)
 			
 		if len(x0.shape)==2:
@@ -1055,10 +764,19 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 			# Build indices
 			self.indices=permutation(self.Np)
 		elif len(x0.shape)==1:
+			# No initial point or initial vector x0 given
 			BoxConstrainedOptimizer.reset(self, x0)
 			
 			# Initialize population
-			self.population=self.normalize(self.initialPopulation())
+			ngen=self.Np if noInitialPoint else self.Np-1
+			self.population=self.normalize(self.initialPopulation(ngen))
+			
+			# Add initial point to population
+			if not noInitialPoint:
+				self.population=concatenate([
+					self.population, 
+					self.normalize(reshape(x0,(1,self.ndim)))
+				])
 			
 			# Build functiom values vector
 			self.fpopulation=zeros(self.Np)
@@ -1068,14 +786,3 @@ class ParallelSADE(BoxConstrainedOptimizer, EventDrivenMS):
 		else:
 			raise Exception, DbgMsg("PSADEOPT", "Only initial point (1D) or population (2D) can be set.")
 			
-	def run(self):
-		"""
-		Runs the optimization algorithm. 
-		"""
-		# Reset stop flag of the Optimizer class
-		self.stop=False
-		
-		# Start master event loop
-		EventDrivenMS.masterEventLoop(self)
-
-	

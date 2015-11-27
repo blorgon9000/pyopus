@@ -4,16 +4,16 @@
 
 **Unconstrained Nelder-Mead optimizer (PyOPUS subsystem name: NMOPT)**
 
-A very popular unconstrained optimization algorithm first published in
-
-Nelder, J. A.,Mead, R.: A simplex method for function minimization. 
-Computer Journal, vol. 7, pp. 308-313, 1965. 
+A very popular unconstrained optimization algorithm first published in [nm]_,
 
 Unfortunately no convergence theory is available. There is even a 
-counterexample available showing how the algorithm can fail. See 
+counterexample available showing how the algorithm can fail. See [mck]_.
 
-McKinnon, K. I. M.: Convergence of the Nelder-Mead Simplex Method to a 
-Nonstationary Point. SIAM Journal on Optimization, vol. 9, pp. 148-158, 1998. 
+.. [nm] Nelder, J. A.,Mead, R.: A simplex method for function minimization. 
+        Computer Journal, vol. 7, pp. 308-313, 1965. 
+
+.. [mck] McKinnon, K. I. M.: Convergence of the Nelder-Mead Simplex Method to a 
+        Nonstationary Point. SIAM Journal on Optimization, vol. 9, pp. 148-158, 1998. 
 """
 
 from ..misc.debug import DbgMsgOut, DbgMsg

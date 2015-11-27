@@ -18,6 +18,8 @@ Contents:
    evaluator.rst
    parallel.rst
    optimizer.rst
+   problems.rst
+   design.rst
    wxmplplot.rst
    visual.rst
    misc.rst

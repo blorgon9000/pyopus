@@ -14,16 +14,15 @@ All functions in this module do one of the following things:
 * raise an exception to indicate a more severe failure
 
 All signals x(t) are defined in tabular form which means that a signal is 
-fully defined with two columns of values (1-dimensional arrays) of the same 
-size. One column is the **scale** which represents the values of the scale (t) 
-while the other column represents the values of the signal (x) corresponding 
+fully defined with two 1-dimensional arrays of values of the same 
+size. One array is the **scale** which represents the values of the scale (t) 
+while the other column represents the values of the **signal** (x) corresponding 
 to the scale points. 
 """
 
 from numpy import array, floor, ceil, where, hstack, unique, abs, arctan, pi, NaN, log10
 from scipy import angle, unwrap
-
-import pdb
+# import matplotlib.pyplot as plt
 
 __all__ = [ 'Deg2Rad', 'Rad2Deg', 'dB2gain', 'gain2dB', 'XatI', 'IatXval', 'filterI', 'XatIrange', 
 			'dYdI', 'dYdX', 'integYdX', 'DCgain', 'DCswingAtGain', 'ACcircle', 'ACtf', 'ACmag', 
@@ -608,7 +607,7 @@ def ACgain(tf, unit='db'):
 def ACbandwidth(tf, scl, filter='lp', levelType='db', level=-3.0):
 	"""
 	Return the bandwidth of a transfer function *tf* on frequency scale *scl*. 
-	*tf* and *scl* must be 1-dimensional arrays of teh same size. 
+	*tf* and *scl* must be 1-dimensional arrays of the same size. 
 	
 	The type of the transfer function is given by *filter* where 
 	
@@ -702,7 +701,7 @@ def ACbandwidth(tf, scl, filter='lp', levelType='db', level=-3.0):
 
 def ACugbw(tf, scl):
 	"""
-	Returns teh uniti-gain bandwidth of a transfer function *tf* on frequency 
+	Returns the uniti-gain bandwidth of a transfer function *tf* on frequency 
 	scale *scl*. 1-dimensional arrays *tf* and *scl* must be of the same size. 
 	
 	The return value is the frequency at which the transfer function 
@@ -877,8 +876,8 @@ def Tdelay(sig1, sig2, scl,
 	The default values of *t1* and *t2* are the first and the last value in 
 	*scl*. 
 	
-	If *lev1type* is ``abs`` *lev1* specifies the value of teh signal at the 
-	crossing. If *lev1type* is ``rel`` *lev1* specifies teh relative value of 
+	If *lev1type* is ``abs`` *lev1* specifies the value of the signal at the 
+	crossing. If *lev1type* is ``rel`` *lev1* specifies the relative value of 
 	the signal (between 0.0 and 1.0) where the 0.0 level is defined as the 
 	*sig1* level at point *t1* on the scale while the 1.0 level is defined as 
 	the *sig1* level at point *t2* on the scale. If *t1* and *t2* are not given 
@@ -1108,14 +1107,21 @@ def TslewRate(edgeType, sig, scl,
 	Measures the slew rate of a signal. The slew rate is defined as the 
 	quotient dx/dt where dx denotes the signal difference between the beginning 
 	and the end of signal's rise/fall, while dt denotes the rise/fall time. 
-	Slew rate is positive for thes rising edge of teh signal and negative for 
-	the falling edge of teh signal. 
+	Slew rate is always positive.
 	
 	See :func:`TedgeTime` for the explanation of the function's parameters. 
 	"""
 	# Get reference levels
 	(i1, s1, i2, s2)=_refLevel(sig, scl, t1, t2)
-	sigDelta=s2-s1
+	if lev1type=='abs':
+		sl1=lev1
+	else:
+		sl1=s1+(s2-s1)*lev1
+	if lev2type=='abs':
+		sl2=lev2
+	else:
+		sl2=s1+(s2-s1)*lev2
+	sigDelta=sl2-sl1
 	
 	# Get edge time
 	dt=TedgeTime(edgeType, sig, scl, lev1type, lev1, lev2type, lev2, t1, t2)
@@ -1182,7 +1188,7 @@ def TsettlingTime(sig, scl,
 	
 	if delta<0:
 		raise Exception, "This is weird. Negative settling time."
-		
+	
 	return delta
 
 	

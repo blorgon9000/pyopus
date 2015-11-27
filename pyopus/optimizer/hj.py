@@ -10,10 +10,10 @@ are taken from time to time. These steps are hoped to speed up the search.
 The convergence theory applied to coordinate search can also be applied to 
 Hooke-Jeeves algorithm if the speculative step length factor is an integer. 
 
-The algorithm (unconstrained version) was first published in 
+The algorithm (unconstrained version) was first published in [hj]_.  
 
-Hooke R., Jeeves T. A., Direct Search Solution of Numerical and Statistical 
-Problems. Journal of the ACM (JACM), vol. 8, pp. 212-229, 1961.
+.. [hj] Hooke R., Jeeves T. A., Direct Search Solution of Numerical and Statistical 
+        Problems. Journal of the ACM (JACM), vol. 8, pp. 212-229, 1961.
 """
 
 from ..misc.debug import DbgMsgOut, DbgMsg

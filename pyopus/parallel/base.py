@@ -82,8 +82,8 @@ Similarly ``/bar`` on host1 represents the same physical storage as ``/d2`` on
 host2. Usually only ``/home`` is common to all hosts in a virtual machine so 
 ``PARALLEL_MIRRORED_STORAGE`` is set to ``/home`` on all hosts. 
 
-Path translation converts a path that on host1 into a path to the physically 
-same filesystem object (mounted from the same exported directory on the file 
+Path translation converts a path on host1 into a path to the physically 
+same object (mounted from the same exported directory on the file 
 server) on host2. The following is an example of path translation. 
 
 	=============	=============
@@ -94,6 +94,7 @@ server) on host2. The following is an example of path translation.
 	=============	=============
 """
 
+from inspect import ismethod, isclass
 from ..misc.debug import DbgMsg, DbgMsgOut
 from ..misc.env import environ
 
@@ -101,8 +102,12 @@ from glob import iglob
 import os, sys, shutil, time
 
 __all__ = [ 'TaskID', 'HostID', 'Msg', 'MsgTaskExit', 'MsgHostDelete', 'MsgHostAdd', 
-			'MsgTaskResult', 'VirtualMachine' ] 
+			'MsgTaskResult', 'VirtualMachine', 'getNumberOfCores' ] 
 
+# This variable holds a reference to the first imported VM module - for resolving conflicts 
+# (e.g. MPI and PVM don't work together)
+firstVM=None
+			
 # All derivative classes must be picklable
 
 # Task identifier definition
@@ -113,6 +118,7 @@ class TaskID(object):
 	(:func:`__cmp__`), hashing (:func:`__hash__`), 	and conversion to a string 
 	(:func:`__str__`). 	
 	"""
+	@staticmethod
 	def bad():
 		"""
 		A static member function. Called with ``TaskID.bad()``. 
@@ -152,6 +158,7 @@ class HostID(object):
 	(:func:`__cmp__`), hashing (:func:`__hash__`), and conversion to a string 
 	(:func:`__str__`). 	
 	"""
+	@staticmethod
 	def bad():
 		"""
 		A static member function. Called with ``HostID.bad()``. 
@@ -249,148 +256,46 @@ class VirtualMachine(object):
 	The base class for accessing hosts working in parallel. 
 	
 	*debug* specifies the debug level. If it is greater than 0 debug messages 
-	are printed on the standard output. If *importUser* is set to ``True`` the 
-	:mod:`user` module is imported on a remote host before a remote task is 
-	spawned on it. 
+	are printed on the standard output. 
+	
+	*startupDir* specifies the working directory where the spawned 
+	functions will wake up. If set to ``None``, the underlying virtual machine 
+	default is used. 
+	
+	If *translateStartupDir* is ``True`` path translation is applied to 
+	*startupDir* just as it is to *mirrorMap*. If mirroring is defined 
+	(*mirrorMap* is given) then no translation is performed on *startupDir* 
+	In this case *startupDIr* is treated as relative path with respect to 
+	the local storage.
+	
+	*mirrorMap* is a dictionary specifying filesystem objects (files and 
+	directories) on the spawner which are to be mirrored (copied) to local 
+	storage on the host where the task is spawned. The keys represent 
+	paths on the spawner while the values represent the corresponding 
+	paths (relative to the local storage dorectory) on the host where the 
+	task will be spawned. Keys can use UNIX style globbing (anything the 
+	:func:`glob.glob` function can handle is OK). If *mirrorMap* is set to 
+	``None``, no mirroring is performed. 
+	
+	For the mirroring to work the filesystem objects on the spawner must be 
+	in the folders specified in the ``PARALLEL_MIRRORED_STORAGE`` 
+	environmental variable. This is because mirroring is performed by local 
+	copy operations which require the source to be on a mounted network 
+	filesystem. 
+	
+	To find out more about setting the working directory and mirroring see 
+	the :meth:`prepareEnvironment` method. 
 	"""
-	def __init__(self, debug=0, importUser=False):
+	def __init__(self, debug=0, startupDir=None, translateStartupDir=True, mirrorMap=None):
 		# Debug level
 		self.debug=debug
 		
-		# Do we have to import user module when spawning remote tasks? 
-		self.importUser=importUser
-		
-		# Startup dir 
-		self.startupDir=None
-		
-		# Local storage map
-		self.mirrorList=None
-	
-	def alive(self):
-		"""
-		Returns ``True`` if the virtual machine is alive. 
-		"""
-		return False
-		
-	def waitForVM(self, timeout=-1.0, beatsPerTimeout=50):
-		"""
-		Waits for the virtual machine to come up (become alive) for *timeout* 
-		seconds. Negative values stand for infinite *timeout*. If polling is 
-		used for checking the status of the virtual machine *beatsPerTimeout* 
-		specifies how many times in *timeout* seconds the status of the virtual 
-		machine is checked. If *timeout* is negative, *beatsPerTimeout* is the 
-		number of times polling is performed in 60 seconds. 
-		
-		Returns ``True`` if the virtual machine is alive after the function 
-		finishes. 
-		"""
-		return False
-	
-	def slots(self):
-		"""
-		Returns the number of slots for tasks in a virtual machine. 
-		Every processor represents a slot for one task. 
-		"""
-		return 0
-		
-	def freeSlots(self):
-		"""
-		Returns the number of free slots for tasks in the virtual machine. 
-		"""
-		return 0
-		
-	def hosts(self):
-		"""
-		Returns the list of :class:`HostID` objects representing the nosts in 
-		the virtual machine. Works only for hosts that are spawners. 
-		"""
-		return []
-		
-	def taskID(self):
-		"""
-		Returns the :class:`TaskID` object corresponding to the calling task. 
-		"""
-		return None
-	
-	def hostID(self):
-		"""
-		Returns the :class:`HostID` object corresponding to the host on which 
-		the caller task runs. 
-		"""
-		return None
-	
-	def parentTaskID(self):
-		"""
-		Returns the :class:`TaskID` object corresponding to the task that 
-		spawned the caller task. 
-		"""
-		return None
-
-	def updateWorkerInfo(self):
-		"""
-		Updates the internal information used by a worker task. 
-		"""
-		pass
-		
-	def updateSpawnerInfo(self, timeout=-1.0):
-		"""
-		Updates the internal configuration information used by a spawner task. 
-		
-		Uses *timeout* where applicable. Negative values stand for infinite 
-		*timeout*. 
-		"""
-		pass
-
-	def formatSpawnerConfig(self):
-		"""
-		Formats the configuration information gathered by a spawner task as a 
-		string. Works only if called by a spawner task.  
-		"""
-		return ""
-	
-	def spawnerBarrier(self, timeout=-1.0):
-		"""
-		In some systems tasks in virtual machine are spawned by an external 
-		utility before Python starts to run scripts (e.g. MPI v1). After a 
-		call to this function one of the pre-spawned tasks becomes the spawner 
-		(rank 0) while all others start executing a loop in which they handle 
-		requests for spawning a Python functions. 
-		
-		*timeout* is used where applicable. Negative values stand for infinite 
-		*timeout*. 
-		"""
-		pass
-
-	def setSpawn(self, startupDir=None, mirrorMap=None):
-		"""
-		Configures task spawning on the spawning process (spawner). 
-		*startupDir* specifies the working directory where the spawned 
-		functions will wake up. 
-		
-		*mirrorMap* is a dictionary specifying filesystem objects (files and 
-		directories) on the spawner which are to be mirrored (copied) to local 
-		storage on the host where the task is spawned. The keys represent 
-		paths on the spawner while the values represent the corresponding 
-		paths (relative to the local storage dorectory) on the host where the 
-		task will be spawned. Keys can une UNIX style globbing (anything the 
-		:func:`glob.glob` function can handle is OK). If *mirrorMap* is set to 
-		``None``, no mirroring is performed. 
-		
-		For the mirroring to work the filesystem objects on the spawner must be 
-		in the folders specified in the ``PARALLEL_MIRRORED_STORAGE`` 
-		environmental variable. This is because mirroring is performed by local 
-		copy operations which require the source to be on a mounted network 
-		filesystem. 
-		
-		The settings set by setSpawn are valid for all spawn operations until 
-		the next call to :meth:`setSpawn`. The initial values of *startupDir* 
-		and *mirrorMap* are ``None``. 
-		
-		To find out more about setting the working directory and mirroring see 
-		the :meth:`prepareEnvironment` method. 
-		"""
 		# Process startupDir
-		self.startupDir=startupDir
+		if translateStartupDir and mirrorMap is not None and startupDir is not None:
+			(self.startupDirIndex, self.startupDirSuffix)=self.translateToAbstractPath(startupDir)
+		else:
+			self.startupDirIndex=None
+			self.startupDirSuffix=startupDir
 		
 		# Process local storage map
 		if mirrorMap is None:
@@ -408,9 +313,94 @@ class VirtualMachine(object):
 				
 				if self.debug:
 					DbgMsgOut("VM", "Mirroring '"+masterObject+"' from '"+suffix+"' in ("+str(index)+") to '"+target+"' in local storage.")
-
+	
+	@staticmethod
+	def slots():
+		"""
+		Returns the number of slots for tasks in a virtual machine. 
+		Every processor represents a slot for one task. 
+		"""
+		return 0
+	
+	@staticmethod
+	def freeSlots():
+		"""
+		Returns the number of free slots for tasks in the virtual machine. 
+		"""
+		return 0
+		
+	@staticmethod
+	def hosts():
+		"""
+		Returns the list of :class:`HostID` objects representing the nosts in 
+		the virtual machine. Works only for hosts that are spawners. 
+		"""
+		return []
+	
+	@staticmethod
+	def taskID():
+		"""
+		Returns the :class:`TaskID` object corresponding to the calling task. 
+		"""
+		return None
+	
+	@staticmethod
+	def hostID():
+		"""
+		Returns the :class:`HostID` object corresponding to the host on which 
+		the caller task runs. 
+		"""
+		return None
+	
+	@staticmethod
+	def parentTaskID():
+		"""
+		Returns the :class:`TaskID` object corresponding to the task that 
+		spawned the caller task. 
+		"""
+		return None
+	
+	@staticmethod
+	def formatSpawnerConfig():
+		"""
+		Formats the configuration information gathered by a spawner task as a 
+		string. Works only if called by a spawner task.  
+		"""
+		return ""
+	
+	@classmethod
+	def dummy(cls):
+		pass
+	
+	# This function prepares a function descriptor for spawning so that member functions can also be spawned
+	@classmethod
+	def func2desc(cls, func):
+		if ismethod(func):
+			# Handles instance methods and classmethods 
+			# Get self, pack it together with method name
+			return (func.im_self, func.__name__)
+		else:
+			# Plain function, just return the function
+			return func
+	
+	# This function reconstructs a function from a function descriptor
+	@classmethod
+	def desc2func(cls, desc):
+		if type(desc) is tuple:
+			# Instance methods and classmethods
+			s,n=desc
+			if isclass(s):
+				# Class, look in __dict__
+				return getattr(s, n)
+			else:
+				# Instance, use __getattribute__
+				return s.__getattribute__(n)
+		else:
+			# Plain function
+			return desc
+	
 	# This must be overriden by every derived class. 
-	def spawnFunction(self, function, args=(), kwargs={}, count=-1, targetList=None, sendBack=False):
+	def spawnFunction(self, function, args=(), kwargs={}, count=-1, targetList=None, sendBack=True):
 		"""
 		Spawns a *count* instances of a Python *function* on remote hosts and 
 		passes *args* and *kwargs* to the function. Spawning a function 
@@ -458,7 +448,7 @@ class VirtualMachine(object):
 		In case of an error the return value is ``None``. 
 		"""
 		raise Exception, DbgMsg("VM", "Reception of messages not implemented.")
-		
+	
 	def sendMessage(self, destination, message):
 		"""
 		Sends *message* (a Python object) to a task with :class:`TaskID` 
@@ -466,6 +456,14 @@ class VirtualMachine(object):
 		"""
 		raise Exception, DbgMsg("VM", "Sending of messages not implemented.")
 	
+	@staticmethod
+	def finalize():
+		"""
+		Cleans up after a parallel program. 
+		Should be called before exit. 
+		"""
+		pass
+		
 	def clearLocalStorage(self, timeout=-1.0):
 		"""
 		This function spawns the :func:`localStorageCleaner` function on all 
@@ -488,7 +486,7 @@ class VirtualMachine(object):
 		for hostID in hostIDs:
 			taskID=self.spawnFunction(localStorageCleaner, kwargs={'vm': self}, count=1, targetList=[hostID])
 			taskIDs.extend(taskID)
-		
+			
 		# Collect return values and task exit messages from all hosts confirming that cleanup is finished. 
 		taskIDs=set(taskIDs)
 		mark=time.time()
@@ -499,14 +497,16 @@ class VirtualMachine(object):
 				if remains<=0:
 					break
 			
-			(sourceID, msg)=self.receiveMessage(remains)
-			if  type(msg) is MsgTaskExit:
-				# Remove taskID from set of spawned task IDs. 
-				if sourceID in taskIDs:
-					taskIDs.remove(sourceID)
-			else:
-				# Throw away other messages. 
-				pass
+			recv=self.receiveMessage(remains)
+			if recv is not None and len(recv)==2:
+				(sourceID, msg)=recv
+				if  type(msg) is MsgTaskExit:
+					# Remove taskID from set of spawned task IDs. 
+					if sourceID in taskIDs:
+						taskIDs.remove(sourceID)
+				else:
+					# Throw away other messages. 
+					pass
 	
 	# These are helper methods  
 	def translateToAbstractPath(self, path):
@@ -588,9 +588,10 @@ class VirtualMachine(object):
 		spawned task. 
 		
 		* If mirroring is not configured with the :meth:`setSpawn` method, the 
-		  working directory is the one specified as *startupDir* at the last 
-		  call to :meth:`setSpawn`. If it is ``None`` the working directory is 
-		  determined by the undelying virtual machine library (e.g. PVM). 
+		  working directory is the one specified as *startupDir* with an 
+		  appropriate path translation applied to it. If it is ``None`` the 
+		  working directory is determined by the undelying virtual machine 
+		  library (e.g. MPI). 
 		
 		* If mirroring is configured with :meth:`setSpawn` (*mirrorList* is not 
 		  ``None``), a local storage directory is created by calling 
@@ -616,21 +617,25 @@ class VirtualMachine(object):
 		  symbolic links which means that they should be relative and point to 
 		  mirrored filesystem objects in order to remain valid after mirroring. 
 		  
-		  If *startupDir* was configured with :meth:`setSpawn` and it is not 
-		  ``None`` the working directory is set to a subpath in the local 
-		  storage directory specified by *startupDir*. 
+		  If *startupDir* was given and it is not ``None`` the working 
+		  directory is set to path given by *startupDir* that is relative to 
+		  the local storage directory. 
 		  
 		  If *startupDir* is ``None`` the working directory is set to the 
 		  local storage directory. 
 		  
-		Returns the path to the local storage dirextory. 
+		Returns the path to the local storage directory. 
 		"""
 		if self.mirrorList is None: 
 			# No mirroring. Change working directory and return. 
-			if self.startupDir is not None:
+			if self.startupDirSuffix is not None:
+				if self.startupDirIndex is None:
+					startupPath=self.startupDirSuffix
+				else:
+					startupPath=self.translateToActualPath(self.startupDirIndex, self.startupDirSuffix)
 				if self.debug:
-					DbgMsgOut("VM", "Changing working directory to '"+self.startupDir+"'.")
-				os.chdir(self.startupDir)
+					DbgMsgOut("VM", "Changing working directory to '"+startupPath+"'.")
+				os.chdir(startupPath)
 			return None
 		
 		# Have mirroring. 
@@ -682,16 +687,35 @@ class VirtualMachine(object):
 					shutil.copy(source, target)
 		
 		# See if workDir is given
-		if self.startupDir is not None:
+		if self.startupDirSuffix is not None:
 			# startupDir is relative to local storage directory. 
-			tmpDir=os.path.join(taskStorage, self.startupDir)
+			tmpDir=os.path.join(taskStorage, self.startupDirSuffix)
 			if self.debug:
 				DbgMsgOut("VM", "Changing working directory to '"+tmpDir+"'.")
 			os.chdir(tmpDir)
 			
 		return taskStorage
+	
+	def cleanupEnvironment(self, taskStorage):
+		"""
+		Removes the working environment prepared for a remote task. 
 		
+		*taskStorage* is the path to the local storage directory. 
+		This directory is removed. 
 		
+		If *taskStorage* is ``None`` nothing is removed. 
+		"""
+		if taskStorage is None:
+			return
+		
+		if self.debug: 
+			DbgMsgOut("VM", "Removing '"+taskStorage+"'.")
+			
+		# Go to ParallelLocalStorage so we are not in our own way. 
+		os.chdir(ParallelLocalStorage)
+		
+		# Remove task storage folder
+		shutil.rmtree(taskStorage, True)
 #
 # Helper functions
 #
@@ -723,7 +747,35 @@ def localStorageCleaner(vm=None):
 			if vm.debug:
 				DbgMsgOut("VM", "Failed to remove '"+completeEntry+"'.")
 
+def getNumberOfCores():
+	"""
+	Returns the number of available CPU cores. 
+	
+	Works for Linux, Unix, MacOS, and Windows. 
+	
+	Uses code from Parallel Python (http://www.parallelpython.com). 
+	"""
+	# Taken from Parallel Python. Thanks. 
+	# For Linux, Unix and MacOS
+	if hasattr(os, "sysconf"):
+		if "SC_NPROCESSORS_ONLN" in os.sysconf_names:
+			# Linux and Unix
+			ncpus = os.sysconf("SC_NPROCESSORS_ONLN")
+			if isinstance(ncpus, int) and ncpus > 0:
+				return ncpus
+		else:
+			# MacOS X
+			return int(os.popen2("sysctl -n hw.ncpu")[1].read())
+	# For Windows
+	if "NUMBER_OF_PROCESSORS" in environ:
+		ncpus = int(environ["NUMBER_OF_PROCESSORS"])
+		if ncpus > 0:
+			return ncpus
+	
+	# Default
+	return 1
 
+	
 #
 # Initialization - runs once at first module import 
 #
@@ -752,7 +804,7 @@ if 'PARALLEL_LOCAL_STORAGE' in environ:
 		raise
 		
 	except:
-		DbgMsgOut("VM", "Failed to process local storage dir"+ParallelLocalStorage+".")
+		DbgMsgOut("VM", "Failed to process local storage dir "+ParallelLocalStorage+".")
 		raise
 else:
 	ParallelLocalStorage=None
@@ -793,4 +845,6 @@ if 'PARALLEL_MIRRORED_STORAGE' in environ:
 	del mirrored
 else:
 	ParallelMirroredStorage=[]
+	
+
 	

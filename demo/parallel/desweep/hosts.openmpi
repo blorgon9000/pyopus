@@ -1,0 +1,6 @@
+queen slots=4
+worker01 slots=4 
+worker02 slots=4
+# worker02 slots=4 
+# worker03 slots=4 
+# worker04 slots=4 

@@ -66,8 +66,6 @@ from ..misc.env import environ
 __all__ = [ 'ipath', 'save_all', 'save_voltage', 'save_current', 'save_property', 
 			'an_op', 'an_dc', 'an_ac', 'an_tran', 'an_noise', 'HSpice' ] 
 
-import pdb
-
 #
 # Hierarchical path handling 
 #
@@ -447,7 +445,8 @@ class HSpice(Simulator):
 			'v': save_voltage,
 			'i': save_current, 
 			'p': save_property, 
-			'ipath': ipath
+			'ipath': ipath, 
+			'var': {}
 		}
 		
 		# Local namespace for analysis evaluation
@@ -458,7 +457,8 @@ class HSpice(Simulator):
 			'tran': an_tran, 
 			'noise': an_noise, 
 			'ipath': ipath, 
-			'param': {}
+			'param': {}, 
+			'var': {}			
 		}
 		
 		# Default binary based on HSPICE_BINARY and platform
@@ -489,16 +489,22 @@ class HSpice(Simulator):
 		
 		self._compile()
 		
-	def _createSaves(self, saveDirectives):
+	def _createSaves(self, saveDirectives, variables):
 		"""
 		Creates a list of save directives by evaluating the members of the 
-		*saveDirectives* list. 
+		*saveDirectives* list. *variables* is a dictionary of extra 
+		variables that are available during directive evaluation. 
 		"""
+		# Prepare evaluation environment
+		evalEnv={}
+		evalEnv.update(self.saveLocals)
+		evalEnv['var']=variables
+	
 		compiledList=[]
 		
 		for saveDirective in saveDirectives:
 			# A directive must be a string that evaluates to a list of strings
-			saveList=eval(saveDirective, globals(), self.saveLocals)
+			saveList=eval(saveDirective, globals(), evalEnv)
 
 			if type(saveList) is not list: 
 				raise Exception, "Save directives must evaluate to a list of strings."
@@ -607,7 +613,12 @@ class HSpice(Simulator):
 			
 			if self.debug>0:
 				DbgMsgOut("HSSI", "  '"+str(job['name'])+"'")
-				
+			
+			# Prepare evaluation environment for analysis command
+			evalEnv={}
+			evalEnv.update(self.analysisLocals)
+			evalEnv['var']=job['variables']
+			
 			# Prepare analysis params - used for evauating analysis expression. 
 			# Case: input parameters get overriden by job parameters - default
 			analysisParams={}
@@ -622,7 +633,7 @@ class HSpice(Simulator):
 			self.analysisLocals['param'].update(analysisParams)
 			
 			# Evaluate analysis statement
-			(anType, anCode, anCommand)=eval(job['command'], globals(), self.analysisLocals)
+			(anType, anCode, anCommand)=eval(job['command'], globals(), evalEnv)
 			
 			# File ending
 			if anCode not in anCodeCount:
@@ -659,7 +670,7 @@ class HSpice(Simulator):
 			
 			# Generate saves 
 			if 'saves' in job:
-				savesList=self._createSaves(job['saves'])
+				savesList=self._createSaves(job['saves'], job['variables'])
 		
 			# Write saves
 			# Assume that 'all' is first in compiled saves list
@@ -1176,6 +1187,7 @@ class HSpice(Simulator):
 		Because HSPICE output files always contain the result of only one 
 		analysis, *resIndex* should always be 0. 
 		"""
+		# TODO: units of total/partial input/output spectra (V**2/Hz or V**2)
 		if name is None:
 			# Input/output noise spectrum
 			if reference=='input':
