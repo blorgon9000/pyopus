@@ -3,15 +3,13 @@
 // HSpice binary file import module
 // Modifications:
 // 1. All vector names are converted to lowercase.
-// 2. In vector names 'v(*' is converted to '*'. 
-// 3. No longer try to close a file after failed fopen (caused a crash). 
+// 2. In vector names 'v(*' is converted to '*'.
+// 3. No longer try to close a file after failed fopen (caused a crash).
 // Author: Arpad Buermen
 
 // Note that in Windows we do not use Debug compile because we don't have the debug
 // version of Python libraries and interpreter. We use Release version instead where
 // optimizations are disabled. Such a Release version can be debugged.
-
-#define NPY_NO_DEPRECATED_API NPY_1_8_API_VERSION
 
 #include "Python.h"
 #include "arrayobject.h"
@@ -20,53 +18,50 @@
 // Methods table
 static PyMethodDef _hspice_read_methods[] =
 {
-	{"hspice_read", HSpiceRead, METH_VARARGS},
-	{NULL, NULL}	// Marks the end of this structure.
+    {"hspice_read", HSpiceRead, METH_VARARGS},
+    {NULL, NULL}    // Marks the end of this structure.
 };
 
 // Module initialization
 // Module name must be _hspice_read in compile and link.
 __declspec(dllexport) void init_hspice_read()
 {
-	(void) Py_InitModule("_hspice_read", _hspice_read_methods);
-	import_array();  // Must be present for NumPy. Called first after above line.
+    (void) Py_InitModule("_hspice_read", _hspice_read_methods);
+    import_array();  // Must be present for NumPy. Called first after above line.
 }
 
 __declspec(dllexport) void init_hspice_read_amd64()
 {
-	(void) Py_InitModule("_hspice_read_amd64", _hspice_read_methods);
-	import_array();  // Must be present for NumPy. Called first after above line.
+    (void) Py_InitModule("_hspice_read_amd64", _hspice_read_methods);
+    import_array();  // Must be present for NumPy. Called first after above line.
 }
 
 __declspec(dllexport) void init_hspice_read_i386()
 {
-	(void) Py_InitModule("_hspice_read_i386", _hspice_read_methods);
-	import_array();  // Must be present for NumPy. Called first after above line.
+    (void) Py_InitModule("_hspice_read_i386", _hspice_read_methods);
+    import_array();  // Must be present for NumPy. Called first after above line.
 }
 
-#define debugFile						stdout
+#define debugFile                        stdout
 
 // Header character positions
-#define blockHeaderSize					4
-#define numOfVariablesPosition			0
-#define numOfProbesPosition				4
-#define numOfSweepsPosition				8
-#define numOfSweepsEndPosition			12
-#define postStartPosition1				16
-#define postStartPosition2				20
-#define postString11					"9007"
-#define postString12					"9601"
-#define postString21					"2001"
-#define numOfPostCharacters				4
-#define dateStartPosition				88
-#define dateEndPosition					112
-#define titleStartPosition				24
-#define sweepSizePosition1				176
-#define sweepSizePosition2				187
-#define vectorDescriptionStartPosition	256
-#define frequency						2
-#define complex_var						1
-#define real_var						0
+#define blockHeaderSize                     4
+#define numOfVariablesPosition              0
+#define numOfProbesPosition                 4
+#define numOfSweepsPosition                 8
+#define numOfSweepsEndPosition              12
+#define postStartPosition1                  16
+#define postStartPosition2                  20
+#define numOfPostCharacters                 4
+#define dateStartPosition                   88
+#define dateEndPosition                     112
+#define titleStartPosition                  24
+#define sweepSizePosition1                  176
+#define sweepSizePosition2                  187
+#define vectorDescriptionStartPosition      256
+#define frequency                           2
+#define complex_var                         1
+#define real_var                            0
 
 // Perform endian swap on array of numbers. Arguments:
 //   block    ... pointer to array of numbers
@@ -74,18 +69,18 @@ __declspec(dllexport) void init_hspice_read_i386()
 //   itemSize ... size of one number in the array in bytes
 void do_swap(char *block, int size, int itemSize)
 {
-	int i;
-	for(i = 0; i < size; i++)
-	{
-		int j;
-		for(j = 0; j < itemSize / 2; j++)
-		{
-			char tmp = block[j];
-			block[j] = block[itemSize - j - 1];
-			block[itemSize - j - 1] = tmp;
-		}
-		block = block + itemSize;
-	}
+    int i;
+    for(i = 0; i < size; i++)
+    {
+        int j;
+        for(j = 0; j < itemSize / 2; j++)
+        {
+            char tmp = block[j];
+            block[j] = block[itemSize - j - 1];
+            block[itemSize - j - 1] = tmp;
+        }
+        block = block + itemSize;
+    }
 }
 
 // Read block header. Returns:
@@ -99,28 +94,28 @@ void do_swap(char *block, int size, int itemSize)
 //   blockHeader ... array of four integers consisting block header
 //   size        ... size of items in block
 int readBlockHeader(FILE *f, const char *fileName, int debugMode, int *blockHeader,
-					int size)
+        int size)
 {
-	int swap, num = fread(blockHeader, sizeof(int), blockHeaderSize, f);
-	if(num != blockHeaderSize)
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: failed to read block header from file %s.\n",
-							  fileName);
-		return -1;	// Error.
-	}
+    int swap, num = fread(blockHeader, sizeof(int), blockHeaderSize, f);
+    if(num != blockHeaderSize)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: failed to read block header from file %s.\n",
+                fileName);
+        return -1;    // Error.
+    }
 
-	// Block header check and swap.
-	if(blockHeader[0] == 0x00000004 && blockHeader[2] == 0x00000004) swap = 0;
-	else if(blockHeader[0] == 0x04000000 && blockHeader[2] == 0x04000000) swap = 1;
-	else
-	{
-		if(debugMode) fprintf(debugFile, "HSpiceRead: corrupted block header.\n");
-		return -1;
-	}
-	if(swap == 1) do_swap((char *)blockHeader, blockHeaderSize, sizeof(int));
-	blockHeader[0] = blockHeader[blockHeaderSize - 1] / size;
-	return swap;
+    // Block header check and swap.
+    if(blockHeader[0] == 0x00000004 && blockHeader[2] == 0x00000004) swap = 0;
+    else if(blockHeader[0] == 0x04000000 && blockHeader[2] == 0x04000000) swap = 1;
+    else
+    {
+        if(debugMode) fprintf(debugFile, "HSpiceRead: corrupted block header.\n");
+        return -1;
+    }
+    if(swap == 1) do_swap((char *)blockHeader, blockHeaderSize, sizeof(int));
+    blockHeader[0] = blockHeader[blockHeaderSize - 1] / size;
+    return swap;
 }
 
 // Read block data. Returns:
@@ -137,19 +132,19 @@ int readBlockHeader(FILE *f, const char *fileName, int debugMode, int *blockHead
 //   numOfItems  ... number of items in block
 //   swap        ... perform endian swap flag
 int readBlockData(FILE *f, const char *fileName, int debugMode, void *ptr,
-					int *offset, int itemSize, int numOfItems, int swap)
+        int *offset, int itemSize, int numOfItems, int swap)
 {
-	int num = fread(ptr, itemSize, numOfItems, f);
-	if(num != numOfItems)
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: failed to read block from file %s.\n",
-							  fileName);
-		return 1;	// Error.
-	}
-	*offset = *offset + numOfItems;
-	if(swap > 0) do_swap((char *)ptr, numOfItems, itemSize);	// Endian swap.
-	return 0;
+    int num = fread(ptr, itemSize, numOfItems, f);
+    if(num != numOfItems)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: failed to read block from file %s.\n",
+                fileName);
+        return 1;    // Error.
+    }
+    *offset = *offset + numOfItems;
+    if(swap > 0) do_swap((char *)ptr, numOfItems, itemSize);    // Endian swap.
+    return 0;
 }
 
 // Read block trailer. Returns:
@@ -162,32 +157,32 @@ int readBlockData(FILE *f, const char *fileName, int debugMode, void *ptr,
 //   swap        ... perform endian swap flag
 //   header      ... block size from header
 int readBlockTrailer(FILE *f, const char *fileName, int debugMode, int swap,
-					 int header)
+        int header)
 {
-	int trailer, num;
-	num = fread(&trailer, sizeof(int), 1, f);
-	if(num != 1)
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: failed to read block trailer from file %s.\n",
-							  fileName);
-		return 1;	// Error.
-	}
-	if(swap > 0) do_swap((char *)(&trailer), 1, sizeof(int));	// Endian swap.
+    int trailer, num;
+    num = fread(&trailer, sizeof(int), 1, f);
+    if(num != 1)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: failed to read block trailer from file %s.\n",
+                fileName);
+        return 1;    // Error.
+    }
+    if(swap > 0) do_swap((char *)(&trailer), 1, sizeof(int));    // Endian swap.
 
-	// Block header and trailer match check.
-	if(header != trailer)
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: block header and trailer mismatch.\n");
-		return 1;	// Error.
-	}
+    // Block header and trailer match check.
+    if(header != trailer)
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: block header and trailer mismatch.\n");
+        return 1;    // Error.
+    }
 
-	return 0;
+    return 0;
 }
 
 // Reallocate space. Returns:
-// 	 NULL    ... reallocation failed
+//      NULL    ... reallocation failed
 //   pointer ... address of reallocated space
 // Arguments:
 //   debugMode   ... debug messages flag
@@ -195,11 +190,11 @@ int readBlockTrailer(FILE *f, const char *fileName, int debugMode, int swap,
 //   size        ... new size in bytes
 void *reallocate(int debugMode, void *ptr, int size)
 {
-	// Allocate space for raw data.
-	void *tmp = PyMem_Realloc(ptr, size);
-	if(tmp == NULL && debugMode)
-		fprintf(debugFile, "HSpiceRead: cannot allocate.\n");
-	return tmp;
+    // Allocate space for raw data.
+    void *tmp = PyMem_Realloc(ptr, size);
+    if(tmp == NULL && debugMode)
+        fprintf(debugFile, "HSpiceRead: cannot allocate.\n");
+    return tmp;
 }
 
 // Read one file header block. Returns:
@@ -214,35 +209,36 @@ void *reallocate(int debugMode, void *ptr, int size)
 //                 enlarged (reallocated) for current block
 //   bufOffset ... pointer to buffer size, increased for current block size
 int readHeaderBlock(FILE *f, int debugMode, const char *fileName, char **buf,
-					int *bufOffset)
+        int *bufOffset)
 {
-	char *tmpBuf;
-	int error, blockHeader[blockHeaderSize], swap;
+    char *tmpBuf;
+    int error, blockHeader[blockHeaderSize], swap;
 
-	// Get size of file header block.
-	swap = readBlockHeader(f, fileName, debugMode, blockHeader, sizeof(char));
-	if(swap < 0) return 1;	// Error.
+    // Get size of file header block.
+    swap = readBlockHeader(f, fileName, debugMode, blockHeader, sizeof(char));
+    if(swap < 0) return 1;    // Error.
 
-	// Allocate space for buffer.
-	tmpBuf = reallocate(debugMode, *buf,
-						(*bufOffset + blockHeader[0] + 1) * sizeof(char));
-	if(tmpBuf == NULL) return 1;	// Error.
-	*buf = tmpBuf;
+    // Allocate space for buffer.
+    tmpBuf = reallocate(debugMode, *buf,
+            (*bufOffset + blockHeader[0] + 1) * sizeof(char));
+    if(tmpBuf == NULL) return 1;    // Error.
+    *buf = tmpBuf;
 
-	// Read file header block.
-	error = readBlockData(f, fileName, debugMode, *buf + *bufOffset, bufOffset,
-						  sizeof(char), blockHeader[0], 0);
-	if(error == 1) return 1;	// Error.
-	(*buf)[*bufOffset] = 0;
 
-	// Read trailer of file header block.
-	error = readBlockTrailer(f, fileName, debugMode, swap,
-							 blockHeader[blockHeaderSize - 1]);
-	if(error == 1) return 1;	// Error.
+    // Read file header block.
+    error = readBlockData(f, fileName, debugMode, *buf + *bufOffset, bufOffset,
+            sizeof(char), blockHeader[0], 0);
+    if(error == 1) return 1;    // Error.
+    (*buf)[*bufOffset] = 0;
 
-	if(strstr(*buf, "$&%#")) return -1;	// End of block.
+    // Read trailer of file header block.
+    error = readBlockTrailer(f, fileName, debugMode, swap,
+            blockHeader[blockHeaderSize - 1]);
+    if(error == 1) return 1;    // Error.
 
-	return 0;	// There is more.
+    if(strstr(*buf, "$&%#")) return -1;    // End of block.
+
+    return 0;    // There is more.
 }
 
 // Get sweep infornation from file header block. Returns:
@@ -255,54 +251,49 @@ int readHeaderBlock(FILE *f, int debugMode, const char *fileName, char **buf,
 //   sweepSize   ... acquired number of sweep points
 //   sweepValues ... sweep points array, new reference created
 //   faSweep     ... pointer to fast access structure for sweep array
-int getSweepInfo(int debugMode, PyObject **sweep, char *buf, int *sweepSize,
-				 PyArrayObject **sweepValues, struct FastArray *faSweep)
+int getSweepInfo(int debugMode, int postVersion, PyObject **sweep, char *buf, int *sweepSize,
+        PyObject **sweepValues, struct FastArray *faSweep)
 {
-	char *sweepName = NULL;
-	npy_intp dims;
-	sweepName = strtok(NULL, " \t\n");	// Get sweep parameter name.
-	if(sweepName == NULL)
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: failed to extract sweep name.\n");
-		return 1;
-	}
-	*sweep = PyString_FromString(sweepName);
-	if(*sweep == NULL)
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: failed to create sweep name string.\n");
-		return 1;
-	}
+    char *sweepName = NULL;
+    npy_intp dims;
+    sweepName = strtok(NULL, " \t\n");    // Get sweep parameter name.
+    if(sweepName == NULL)
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: failed to extract sweep name.\n");
+        return 1;
+    }
+    *sweep = PyString_FromString(sweepName);
+    if(*sweep == NULL)
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: failed to create sweep name string.\n");
+        return 1;
+    }
 
-	// Get number of sweep points.
-	if(strncmp(&buf[postStartPosition2], postString21, numOfPostCharacters) != 0)
-		*sweepSize = atoi(&buf[sweepSizePosition1]);
-	else *sweepSize = atoi(&buf[sweepSizePosition2]);
+    // Get number of sweep points.
+    if(postVersion == 2001)
+        *sweepSize = atoi(&buf[sweepSizePosition1]);
+    else *sweepSize = atoi(&buf[sweepSizePosition2]);
 
-	// Create array for sweep parameter values.
-	dims=*sweepSize;
-	// *sweepValues = PyArray_SimpleNew(1, &dims, PyArray_DOUBLE);
-	*sweepValues = (PyArrayObject *)PyArray_SimpleNew(1, &dims, NPY_DOUBLE);
-	if(*sweepValues == NULL)
-	{
-		if(debugMode) fprintf(debugFile, "HSpiceRead: failed to create array.\n");
-		return 1;
-	}
+    // Create array for sweep parameter values.
+    dims=*sweepSize;
+    *sweepValues = PyArray_SimpleNew(1, &dims, PyArray_DOUBLE);
+    if(*sweepValues == NULL)
+    {
+        if(debugMode) fprintf(debugFile, "HSpiceRead: failed to create array.\n");
+        return 1;
+    }
 
-	// Prepare fast access structure.
-	// faSweep->data = ((PyArrayObject *)(*sweepValues))->data;
-	faSweep->data = PyArray_DATA(*sweepValues);
-	// faSweep->pos = ((PyArrayObject *)(*sweepValues))->data;
-	faSweep->pos = PyArray_DATA(*sweepValues);
-	faSweep->stride = 
-		PyArray_STRIDE(*sweepValues, PyArray_NDIM(*sweepValues)-1);
-		// ((PyArrayObject *)(*sweepValues))->strides[((PyArrayObject *)(*sweepValues))->nd -
-		// 1];
-	// faSweep->length = PyArray_Size(*sweepValues);
-	faSweep->length = PyArray_SIZE(*sweepValues);
+    // Prepare fast access structure.
+    faSweep->data = ((PyArrayObject *)(*sweepValues))->data;
+    faSweep->pos = ((PyArrayObject *)(*sweepValues))->data;
+    faSweep->stride =
+        ((PyArrayObject *)(*sweepValues))->strides[((PyArrayObject *)(*sweepValues))->nd -
+        1];
+    faSweep->length = PyArray_Size(*sweepValues);
 
-	return 0;
+    return 0;
 }
 
 // Read one data block. Returns:
@@ -316,35 +307,53 @@ int getSweepInfo(int debugMode, PyObject **sweep, char *buf, int *sweepSize,
 //   rawData       ... pointer to data array,
 //                     enlarged (reallocated) for current block
 //   rawDataOffset ... pointer to data array size, increased for current block size
-int readDataBlock(FILE *f, int debugMode, const char *fileName, float **rawData,
-				  int *rawDataOffset)
+int readDataBlock(FILE *f, int debugMode, int postVersion,
+        const char *fileName, float **rawData,
+        int *rawDataOffset)
 {
-	int error, blockHeader[blockHeaderSize], swap;
-	float *tmpRawData;
+    int error, blockHeader[blockHeaderSize], swap;
+    float *tmpRawData;
+    double endVal;
 
-	// Get size of raw data block.
-	swap = readBlockHeader(f, fileName, debugMode, blockHeader, sizeof(float));
-	if(swap < 0) return 1;	// Error.
+    // Get size of raw data block.
+    swap = readBlockHeader(f, fileName, debugMode, blockHeader, sizeof(float));
+    if(swap < 0) return 1;    // Error.
 
-	// Allocate space for raw data.
-	tmpRawData = reallocate(debugMode, *rawData,
-							(*rawDataOffset + blockHeader[0]) * sizeof(float));
-	if(tmpRawData == NULL) return 1;	// Error.
-	*rawData = tmpRawData;
+    // Allocate space for raw data.
+    tmpRawData = reallocate(debugMode, *rawData,
+            (*rawDataOffset + blockHeader[0]) * sizeof(float));
+    if(tmpRawData == NULL) return 1;    // Error.
+    *rawData = tmpRawData;
 
-	// Read raw data block.
-	error = readBlockData(f, fileName, debugMode, *rawData + *rawDataOffset,
-						  rawDataOffset, sizeof(float), blockHeader[0], swap);
-	if(error == 1) return 1;	// Error.
+    // Read raw data block.
+    error = readBlockData(f, fileName, debugMode, *rawData + *rawDataOffset,
+            rawDataOffset, sizeof(float), blockHeader[0], swap);
+    if(error == 1) return 1;    // Error.
 
-	// Read trailer of file header block.
-	error = readBlockTrailer(f, fileName, debugMode, swap,
-							 blockHeader[blockHeaderSize - 1]);
-	if(error == 1) return 1;	// Error.
+    // Read trailer of file header block.
+    error = readBlockTrailer(f, fileName, debugMode, swap,
+            blockHeader[blockHeaderSize - 1]);
+    if(error == 1) return 1;    // Error.
 
-	if((*rawData)[*rawDataOffset - 1] > 9e29) return -1;	// End of block.
 
-	return 0;	// There is more.
+    if(postVersion == 2001)
+    {
+        endVal = *(double *)(*rawData + *rawDataOffset - 2);
+    }
+    else
+    {
+        endVal = *(*rawData + *rawDataOffset - 1);
+    }
+
+    if(endVal > 9e29)
+    {
+        if(debugMode) fprintf(debugFile, "%g\n", endVal);
+        return -1;    // End of block.
+    }
+
+
+
+    return 0;    // There is more.
 }
 
 // Read one table for one sweep value. Returns:
@@ -356,7 +365,7 @@ int readDataBlock(FILE *f, int debugMode, const char *fileName, float **rawData,
 //   fileName       ... name of the file
 //   sweep          ... sweep parameter name
 //   numOfVariables ... number of variables in table
-//   type           ... type of variables with exeption of scale 
+//   type           ... type of variables with exeption of scale
 //   numOfVectors   ... number of variables and probes in table
 //   faSweep        ... pointer to fast access structure for sweep array
 //   tmpArray       ... array of pointers to arrays
@@ -364,131 +373,173 @@ int readDataBlock(FILE *f, int debugMode, const char *fileName, float **rawData,
 //   scale          ... scale name
 //   name           ... array of vector names
 //   dataList       ... list of data dictionaries
-int readTable(FILE *f, int debugMode, const char *fileName, PyObject *sweep,
-			  int numOfVariables, int type, int numOfVectors,
-			  struct FastArray *faSweep, PyArrayObject **tmpArray,
-			  struct FastArray *faPtr, char *scale, char **name, PyObject *dataList)
+int readTable(FILE *f, int debugMode, int postVersion,
+        const char *fileName, PyObject *sweep,
+        int numOfVariables, int type, int numOfVectors,
+        struct FastArray *faSweep, PyObject **tmpArray,
+        struct FastArray *faPtr, char *scale, char **name, PyObject *dataList)
 {
-	int i, j, num, offset = 0, numOfColumns = numOfVectors;
-	npy_intp dims;
-	float *rawDataPos, *rawData = NULL;
-	PyObject *data = NULL; 
+    int i, j, num, offset = 0, numOfColumns = numOfVectors;
+    npy_intp dims;
+    float *rawDataPos, *rawData = NULL;
+    PyObject *data = NULL;
 
-	// Read raw data blocks.
-	do num = readDataBlock(f, debugMode, fileName, &rawData, &offset);
-	while(num == 0);
-	if(num > 0) goto readTableFailed;
+    // Read raw data blocks.
+    do num = readDataBlock(f, debugMode, postVersion, fileName, &rawData, &offset);
+    while(num == 0);
+    if(num > 0) goto readTableFailed;
 
-	data = PyDict_New();	// Create an empty dictionary.
-	if(data == NULL)
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: failed to create data dictionary.\n");
-		goto readTableFailed;
-	}
+    data = PyDict_New();    // Create an empty dictionary.
+    if(data == NULL)
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: failed to create data dictionary.\n");
+        goto readTableFailed;
+    }
 
-	// Increase number of columns if variables with exeption of scale are complex.
-	if(type == complex_var) numOfColumns = numOfColumns + numOfVariables - 1;
+    // Increase number of columns if variables with exeption of scale are complex.
+    if(type == complex_var) numOfColumns = numOfColumns + numOfVariables - 1;
 
-	rawDataPos = rawData;
-	if(sweep == NULL) num = (offset - 1) / numOfColumns;	// Number of rows.
-	else
-	{
-		num = (offset - 2) / numOfColumns;
-		*((npy_double *)(faSweep->pos)) = *rawDataPos;	// Save sweep value.
-		rawDataPos = rawDataPos + 1;
-		faSweep->pos = faSweep->pos + faSweep->stride;
-	}
+    rawDataPos = rawData;
 
-	for(i = 0; i < numOfVectors; i++)
-	{
-		// Create array for i-th vector.
-		dims=num;
-		if(type == complex_var && i > 0 && i < numOfVariables)
-			// tmpArray[i] = PyArray_SimpleNew(1, &dims, PyArray_CDOUBLE);
-			tmpArray[i] = (PyArrayObject *)PyArray_SimpleNew(1, &dims, NPY_CDOUBLE);
-		else
-			// tmpArray[i] = PyArray_SimpleNew(1, &dims, PyArray_DOUBLE);
-			tmpArray[i] = (PyArrayObject *)PyArray_SimpleNew(1, &dims, NPY_DOUBLE);
-		if(tmpArray[i] == NULL)
-		{
-			if(debugMode)
-				fprintf(debugFile, "HSpiceRead: failed to create array.\n");
-			for(j = 0; j < i + 1; j++) Py_XDECREF(tmpArray[j]);
-			goto readTableFailed;
-		}
-	}
 
-	for(i = 0; i < numOfVectors; i++)	// Prepare fast access structures.
-	{
-		// faPtr[i].data = ((PyArrayObject *)(tmpArray[i]))->data;
-		faPtr[i].data = PyArray_DATA(tmpArray[i]);
-		// faPtr[i].pos = ((PyArrayObject *)(tmpArray[i]))->data;
-		faPtr[i].pos = PyArray_DATA(tmpArray[i]);
-		faPtr[i].stride =
-			PyArray_STRIDE(tmpArray[i], PyArray_NDIM(tmpArray[i])-1);
-			// ((PyArrayObject *)(tmpArray[i]))->strides[((PyArrayObject *)(tmpArray[i]))->nd -
-			// 1];
-		// faPtr[i].length = PyArray_Size(tmpArray[i]);
-		faPtr[i].length = PyArray_SIZE(tmpArray[i]);
-	}
+    // TODO check sweeps with postVersion == 2001
+    if(postVersion == 2001)
+    {
+        if(sweep == NULL) num = (offset - 1) / numOfColumns
+            / 2;    // Number of rows.
+        else
+        {
+            num = (offset - 2) / numOfColumns / 2;
+            *((npy_double *)(faSweep->pos)) = *((double*)rawDataPos);
+                // Save sweep value.
+            rawDataPos = rawDataPos + 2;
+            faSweep->pos = faSweep->pos + faSweep->stride;
+        }
+    }
+    else
+    {
+        if(sweep == NULL) num = (offset - 1) / numOfColumns;    // Number of rows.
+        else
+        {
+            num = (offset - 2) / numOfColumns;
+            *((npy_double *)(faSweep->pos)) = *rawDataPos;    // Save sweep value.
+            rawDataPos = rawDataPos + 1;
+            faSweep->pos = faSweep->pos + faSweep->stride;
+        }
+    }
 
-	for(i = 0; i < num; i++)	// Save raw data.
-	{
-		struct FastArray *faPos = faPtr;
-		for(j = 0; j < numOfVectors; j++)
-		{
-			if(type == complex_var && j > 0 && j < numOfVariables)
-			{
-				((npy_cdouble *)(faPos->pos))->real = *rawDataPos;
-				rawDataPos = rawDataPos + 1;
-				((npy_cdouble *)(faPos->pos))->imag = *rawDataPos;
-			} else *((npy_double *)(faPos->pos)) = *rawDataPos;
-			rawDataPos = rawDataPos + 1;
-			faPos->pos = faPos->pos + faPos->stride;
-			faPos = faPos + 1;
-		}
-	}
-	PyMem_Free(rawData);
-	rawData = NULL;
+    if(debugMode) fprintf(debugFile, "num=%d\n", num);
 
-	// Insert vectors into dictionary.
-	num = PyDict_SetItemString(data, scale, (PyObject *)(tmpArray[0]));
-	i = -1;
-	if(num == 0) for(i = 0; i < numOfVectors - 1; i++)
-	{
-		num = PyDict_SetItemString(data, name[i], (PyObject *)(tmpArray[i + 1]));
-		if(num != 0) break;
-	}
-	for(j = 0; j < numOfVectors; j++) Py_XDECREF(tmpArray[j]);
-	if(num)
-	{
-		if(debugMode) if(i = -1) fprintf(debugFile,
-										 "HSpiceRead: failed to insert vector %s into dictionary.\n",
-										 scale);
-					  else fprintf(debugFile,
-								   "HSpiceRead: failed to insert vector %s into dictionary.\n",
-								   name[i]);
-		goto readTableFailed;
-	}
+    for(i = 0; i < numOfVectors; i++)
+    {
+        // Create array for i-th vector.
+        dims=num;
+        if(type == complex_var && i > 0 && i < numOfVariables)
+            tmpArray[i] = PyArray_SimpleNew(1, &dims, PyArray_CDOUBLE);
+        else
+            tmpArray[i] = PyArray_SimpleNew(1, &dims, PyArray_DOUBLE);
+        if(tmpArray[i] == NULL)
+        {
+            if(debugMode)
+                fprintf(debugFile, "HSpiceRead: failed to create array.\n");
+            for(j = 0; j < i + 1; j++) Py_XDECREF(tmpArray[j]);
+            goto readTableFailed;
+        }
+    }
 
-	// Insert table into the list of data dictionaries.
-	num = PyList_Append(dataList, data);
-	if(num)
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: failed to append table to the list of data dictionaries.\n");
-		goto readTableFailed;
-	}
-	Py_XDECREF(data);
-	data = NULL;
+    for(i = 0; i < numOfVectors; i++)    // Prepare fast access structures.
+    {
+        faPtr[i].data = ((PyArrayObject *)(tmpArray[i]))->data;
+        faPtr[i].pos = ((PyArrayObject *)(tmpArray[i]))->data;
+        faPtr[i].stride =
+            ((PyArrayObject *)(tmpArray[i]))->strides[((PyArrayObject *)(tmpArray[i]))->nd -
+            1];
+        faPtr[i].length = PyArray_Size(tmpArray[i]);
+    }
 
-	return 0;
+
+    if(postVersion == 2001)
+    {
+        for(i = 0; i < num; i++)    // Save raw data.
+        {
+            struct FastArray *faPos = faPtr;
+            for(j = 0; j < numOfVectors; j++)
+            {
+                if(type == complex_var && j > 0 && j < numOfVariables)
+                {
+                    ((npy_cdouble *)(faPos->pos))->real = *((double *)rawDataPos);
+                    rawDataPos = rawDataPos + 2;
+                    ((npy_cdouble *)(faPos->pos))->imag = *((double *)rawDataPos);
+                } else *((npy_double *)(faPos->pos)) = *((double *)rawDataPos);
+                rawDataPos = rawDataPos + 2;
+                faPos->pos = faPos->pos + faPos->stride;
+                faPos = faPos + 1;
+            }
+        }
+    }
+    else
+    {
+        for(i = 0; i < num; i++)    // Save raw data.
+        {
+            struct FastArray *faPos = faPtr;
+            for(j = 0; j < numOfVectors; j++)
+            {
+                if(type == complex_var && j > 0 && j < numOfVariables)
+                {
+                    ((npy_cdouble *)(faPos->pos))->real = *rawDataPos;
+                    rawDataPos = rawDataPos + 1;
+                    ((npy_cdouble *)(faPos->pos))->imag = *rawDataPos;
+                } else *((npy_double *)(faPos->pos)) = *rawDataPos;
+                rawDataPos = rawDataPos + 1;
+                faPos->pos = faPos->pos + faPos->stride;
+                faPos = faPos + 1;
+            }
+        }
+    }
+    PyMem_Free(rawData);
+    rawData = NULL;
+
+    // Insert vectors into dictionary.
+    num = PyDict_SetItemString(data, scale, tmpArray[0]);
+    i = -1;
+    if(num == 0) for(i = 0; i < numOfVectors - 1; i++)
+    {
+        num = PyDict_SetItemString(data, name[i], tmpArray[i + 1]);
+        if(num != 0) break;
+    }
+    for(j = 0; j < numOfVectors; j++) Py_XDECREF(tmpArray[j]);
+    if(num)
+    {
+        if(debugMode) {
+            if(i == -1) fprintf(debugFile,
+                    "HSpiceRead: failed to insert vector %s into dictionary.\n",
+                    scale);
+            else fprintf(debugFile,
+                    "HSpiceRead: failed to insert vector %s into dictionary.\n",
+                    name[i]);
+        }
+
+        goto readTableFailed;
+    }
+
+    // Insert table into the list of data dictionaries.
+    num = PyList_Append(dataList, data);
+    if(num)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: failed to append table to the list of data dictionaries.\n");
+        goto readTableFailed;
+    }
+    Py_XDECREF(data);
+    data = NULL;
+
+    return 0;
 
 readTableFailed:
-	PyMem_Free(rawData);
-	Py_XDECREF(data);
-	return 1;
+    PyMem_Free(rawData);
+    Py_XDECREF(data);
+    return 1;
 }
 
 // This is the first prototype version of HSpiceRead function for reading HSpice
@@ -500,267 +551,278 @@ readTableFailed:
 //   scale monotonity check
 static PyObject *HSpiceRead(PyObject *self, PyObject *args)
 {
-	const char *fileName;
-	char *token, *buf = NULL, **name = NULL;
-	int debugMode, num, numOfVectors, numOfVariables, type, sweepSize = 1,
-		i = dateStartPosition - 1, offset = 0;
-	struct FastArray faSweep, *faPtr = NULL;
-	FILE *f = NULL;
-	PyObject *date = NULL, *title = NULL, *scale = NULL, *sweep = NULL,
-		*dataList = NULL, *sweeps = NULL,
-		*tuple = NULL, *list = NULL;
-	PyArrayObject *sweepValues = NULL, **tmpArray = NULL;
+    const char *fileName;
+    char *token, *buf = NULL, **name = NULL;
+    int debugMode, num, numOfVectors, numOfVariables, type, sweepSize = 1,
+        i = dateStartPosition - 1, offset = 0;
+    struct FastArray faSweep, *faPtr = NULL;
 
-	// Get hspice_read() arguments.
-	if(!PyArg_ParseTuple(args, "si", &fileName, &debugMode)) return Py_None;
+    int postVersion = 0;
 
-	if(debugMode) fprintf(debugFile, "HSpiceRead: reading file %s.\n", fileName);
+    FILE *f = NULL;
+    PyObject *date = NULL, *title = NULL, *scale = NULL, *sweep = NULL,
+             *sweepValues = NULL, *dataList = NULL, **tmpArray = NULL, *sweeps = NULL,
+             *tuple = NULL, *list = NULL;
 
-	f = fopen(fileName, "rb");	// Open the file.
-	if(f == NULL)
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: cannot open file %s.\n", fileName);
-		goto failed;
-	}
+    // Get hspice_read() arguments.
+    if(!PyArg_ParseTuple(args, "si", &fileName, &debugMode)) return Py_None;
 
-	num = getc(f);
-	ungetc(num, f);
-	if(num == EOF)	// Test if there is data in the file.
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: file %s is empty.\n", fileName);
-		goto failed;
-	}
-	if((num & 0x000000ff) >= ' ')	// Test if the file is in binary format.
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: file %s is in ascii format.\n",
-							  fileName);
-		goto failed;
-	}
+    if(debugMode) fprintf(debugFile, "HSpiceRead: reading file %s.\n", fileName);
 
-	// Read file header blocks.
-	do num = readHeaderBlock(f, debugMode, fileName, &buf, &offset);
-	while(num == 0);
-	if(num > 0) goto failed;
+    f = fopen(fileName, "rb");    // Open the file.
+    if(f == NULL)
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: cannot open file %s.\n", fileName);
+        goto failed;
+    }
 
- 	// Check version of post format.
-	if(strncmp(&buf[postStartPosition1], postString11, numOfPostCharacters) != 0 &&
-	   strncmp(&buf[postStartPosition1], postString12, numOfPostCharacters) != 0 &&
-	   strncmp(&buf[postStartPosition2], postString21, numOfPostCharacters) != 0)
-	{
-		if(debugMode) fprintf(debugFile, "HSpiceRead: unknown post format.\n");
-		goto failed;
-	}
+    num = getc(f);
+    ungetc(num, f);
+    if(num == EOF)    // Test if there is data in the file.
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: file %s is empty.\n", fileName);
+        goto failed;
+    }
+    if((num & 0x000000ff) >= ' ')    // Test if the file is in binary format.
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: file %s is in ascii format.\n",
+                fileName);
+        goto failed;
+    }
 
-	buf[dateEndPosition] = 0;
-	date = PyString_FromString(&buf[dateStartPosition]);	// Get creation date.
-	if(date == NULL)
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: failed to create date string.\n");
-		goto failed;
-	}
+    // Read file header blocks.
+    do num = readHeaderBlock(f, debugMode, fileName, &buf, &offset);
+    while(num == 0);
+    if(num > 0) goto failed;
 
-	while(buf[i] == ' ') i--;
-	buf[i + 1] = 0;
-	title = PyString_FromString(&buf[titleStartPosition]);	// Get title.
-	if(title == NULL)
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: failed to create title string.\n");
-		goto failed;
-	}
+    if(strncmp(&buf[postStartPosition1], "9007", numOfPostCharacters) == 0)
+        postVersion = 9007;
+    else if(strncmp(&buf[postStartPosition1], "9601", numOfPostCharacters) == 0)
+        postVersion = 9601;
+    else if(strncmp(&buf[postStartPosition2], "2001", numOfPostCharacters) == 0)
+        postVersion = 2001;
+    else
+    {
+        if(debugMode) fprintf(debugFile, "HSpiceRead: unknown post format.\n");
+        goto failed;
+    }
 
-	buf[numOfSweepsEndPosition] = 0;	// Check number of sweep parameters.
-	num = atoi(&buf[numOfSweepsPosition]);
-	if(num < 0 || num > 1) 
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: only onedimensional sweep supported.\n");
-		goto failed;
-	}
+    if(debugMode) fprintf(debugFile, "POST_VERSION=%d\n", postVersion);
 
-	buf[numOfSweepsPosition] = 0;	// Get number of vectors (variables and probes).
-	numOfVectors = atoi(&buf[numOfProbesPosition]);
-	buf[numOfProbesPosition] = 0;
-	numOfVariables = atoi(&buf[numOfVariablesPosition]);	// Scale included.
-	numOfVectors = numOfVectors + numOfVariables;
+    buf[dateEndPosition] = 0;
+    date = PyString_FromString(&buf[dateStartPosition]);    // Get creation date.
+    if(date == NULL)
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: failed to create date string.\n");
+        goto failed;
+    }
 
-	// Get type of variables. Scale is always real.
-	token = strtok(&buf[vectorDescriptionStartPosition], " \t\n");
-	type = atoi(token);
-	if(type == frequency) type = complex_var;
-	else type = real_var;
+    while(buf[i] == ' ') i--;
+    buf[i + 1] = 0;
+    title = PyString_FromString(&buf[titleStartPosition]);    // Get title.
+    if(title == NULL)
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: failed to create title string.\n");
+        goto failed;
+    }
 
-	for(i = 0; i < numOfVectors; i++) token = strtok(NULL, " \t\n");
-	if(token == NULL)
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: failed to extract independent variable name.\n");
-		goto failed;
-	}
+    buf[numOfSweepsEndPosition] = 0;    // Check number of sweep parameters.
+    num = atoi(&buf[numOfSweepsPosition]);
+    if(num < 0 || num > 1)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: only onedimensional sweep supported.\n");
+        goto failed;
+    }
 
-	scale = PyString_FromString(token);	// Get independent variable name.
-	if(scale == NULL)
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: failed to create independent variable name string.\n");
-		goto failed;
-	}
+    buf[numOfSweepsPosition] = 0;    // Get number of vectors (variables and probes).
+    numOfVectors = atoi(&buf[numOfProbesPosition]);
+    buf[numOfProbesPosition] = 0;
+    numOfVariables = atoi(&buf[numOfVariablesPosition]);    // Scale included.
+    numOfVectors = numOfVectors + numOfVariables;
 
-	// Allocate space for pointers to vector names.
-	name = (char **)PyMem_Malloc((numOfVectors - 1) * sizeof(char *));
-	if(name == NULL)
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: cannot allocate pointers to vector names.\n");
-		goto failed;
-	}
+    // Get type of variables. Scale is always real.
+    token = strtok(&buf[vectorDescriptionStartPosition], " \t\n");
+    type = atoi(token);
+    if(type == frequency) type = complex_var;
+    else type = real_var;
 
-	for(i = 0; i < numOfVectors - 1; i++)	// Get vector names.
-	{
-		name[i] = strtok(NULL, " \t\n");
-		if(name[i] == NULL)
-		{
-			if(debugMode) fprintf(debugFile,
-								  "HSpiceRead: failed to extract vector names.\n");
-			goto failed;
-		}
-	}
+    for(i = 0; i < numOfVectors; i++) token = strtok(NULL, " \t\n");
+    if(token == NULL)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: failed to extract independent variable name.\n");
+        goto failed;
+    }
 
-	// Process vector names: make name lowercase, remove v( in front of name
-	for(i=0; i < numOfVectors - 1; i++) {
-		int j;
-		for(j=0;name[i][j];j++) {
-			if (name[i][j]>='A' && name[i][j]<='Z') {
-				name[i][j]-='A'-'a';
-			}
-		}
-		if (name[i][0]=='v' && name[i][1]=='(') {
-			for(j=2;name[i][j];j++) {
-				name[i][j-2]=name[i][j];
-			}
-			name[i][j-2]=0;
-		}
-	}
+    scale = PyString_FromString(token);    // Get independent variable name.
+    if(scale == NULL)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: failed to create independent variable name string.\n");
+        goto failed;
+    }
 
-	if(num == 1)	// Get sweep information.
-	{
-		int num = getSweepInfo(debugMode, &sweep, buf, &sweepSize, &sweepValues,
-							   &faSweep);
-		if(num) goto failed;
-	}
+    // Allocate space for pointers to vector names.
+    name = (char **)PyMem_Malloc((numOfVectors - 1) * sizeof(char *));
+    if(name == NULL)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: cannot allocate pointers to vector names.\n");
+        goto failed;
+    }
 
-	dataList = PyList_New(0);	// Create an empty list for data dictionaries.
-	if(dataList == NULL)
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: failed to create data list.\n");
-		goto failed;
-	}
+    for(i = 0; i < numOfVectors - 1; i++)    // Get vector names.
+    {
+        name[i] = strtok(NULL, " \t\n");
+        if(name[i] == NULL)
+        {
+            if(debugMode) fprintf(debugFile,
+                    "HSpiceRead: failed to extract vector names.\n");
+            goto failed;
+        }
+    }
 
-	// Allocate space for pointers to arrays.
-	tmpArray = (PyArrayObject **)PyMem_Malloc(numOfVectors * sizeof(PyArrayObject *));
-	if(tmpArray == NULL)
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: cannot allocate pointers to arrays.\n");
-		goto failed;
-	}
+    // Process vector names: make name lowercase, remove v( in front of name
+    for(i=0; i < numOfVectors - 1; i++) {
+        int j;
+        for(j=0;name[i][j];j++) {
+            if (name[i][j]>='A' && name[i][j]<='Z') {
+                name[i][j]-='A'-'a';
+            }
+        }
+        if (name[i][0]=='v' && name[i][1]=='(') {
+            for(j=2;name[i][j];j++) {
+                name[i][j-2]=name[i][j];
+            }
+            name[i][j-2]=0;
+        }
+    }
 
-	// Allocate space for fast array pointers.
-	faPtr =
-		(struct FastArray *)PyMem_Malloc(numOfVectors * sizeof(struct FastArray));
-	if(faPtr == NULL)
-	{
-		if(debugMode) fprintf(debugFile, "HSpiceRead: failed to create array.\n");
-		goto failed;
-	}
+    if(num == 1)    // Get sweep information.
+    {
+        int num = getSweepInfo(debugMode, postVersion,
+                &sweep, buf, &sweepSize, &sweepValues,
+                &faSweep);
+        if(num) goto failed;
+    }
 
-	for(i = 0; i < sweepSize; i++)	// Read i-th table.
-	{
-		num = readTable(f, debugMode, fileName, sweep, numOfVariables, type,
-						numOfVectors, &faSweep, tmpArray, faPtr, token, name,
-						dataList);
-		if(num) goto failed;
-	}
-	fclose(f);
-	f = NULL;
-	PyMem_Free(faPtr);
-	faPtr = NULL;
-	PyMem_Free(buf);
-	buf = NULL;
-	PyMem_Free(name);
-	name = NULL;
-	PyMem_Free(tmpArray);
-	tmpArray = NULL;
+    dataList = PyList_New(0);    // Create an empty list for data dictionaries.
+    if(dataList == NULL)
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: failed to create data list.\n");
+        goto failed;
+    }
 
-	// Create sweeps tuple.
-	if(sweep == NULL) sweeps = PyTuple_Pack(3, Py_None, Py_None, dataList);
-	else sweeps = PyTuple_Pack(3, sweep, sweepValues, dataList);
-	if(sweeps == NULL)
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: failed to create tuple with sweeps.\n");
-		goto failed;
-	}
-	Py_XDECREF(sweep);
-	Py_XDECREF(sweepValues);
-	Py_XDECREF(dataList);
+    // Allocate space for pointers to arrays.
+    tmpArray = (PyObject **)PyMem_Malloc(numOfVectors * sizeof(PyObject *));
+    if(tmpArray == NULL)
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: cannot allocate pointers to arrays.\n");
+        goto failed;
+    }
 
-	// Prepare return tuple.
-	tuple = PyTuple_Pack(6, sweeps, scale, Py_None, title, date, Py_None);
-	if(tuple == NULL)
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: failed to create tuple with read data.\n");
-		goto failed;
-	}
-	Py_XDECREF(date);
-	date = NULL;
-	Py_XDECREF(title);
-	title = NULL;
-	Py_XDECREF(scale);
-	scale = NULL;
-	Py_XDECREF(sweeps);
-	sweeps = NULL;
+    // Allocate space for fast array pointers.
+    faPtr =
+        (struct FastArray *)PyMem_Malloc(numOfVectors * sizeof(struct FastArray));
+    if(faPtr == NULL)
+    {
+        if(debugMode) fprintf(debugFile, "HSpiceRead: failed to create array.\n");
+        goto failed;
+    }
 
-	list = PyList_New(0);	// Create an empty list.
-	if(list == NULL)
-	{
-		if(debugMode)
-			fprintf(debugFile, "HSpiceRead: failed to create return list.\n");
-		goto failed;
-	}
+    if(debugMode) fprintf(debugFile,"numOfVectors=%d\n", numOfVectors);
 
-	num = PyList_Append(list, tuple);	// Insert tuple into return list.
-	if(num)
-	{
-		if(debugMode) fprintf(debugFile,
-							  "HSpiceRead: failed to append tuple to return list.\n");
-		goto failed;
-	}
-	Py_XDECREF(tuple);
+    for(i = 0; i < sweepSize; i++)    // Read i-th table.
+    {
+        num = readTable(f, debugMode, postVersion,
+                fileName, sweep, numOfVariables, type,
+                numOfVectors, &faSweep, tmpArray, faPtr, token, name,
+                dataList);
+        if(num) goto failed;
+    }
+    fclose(f);
+    f = NULL;
+    PyMem_Free(faPtr);
+    faPtr = NULL;
+    PyMem_Free(buf);
+    buf = NULL;
+    PyMem_Free(name);
+    name = NULL;
+    PyMem_Free(tmpArray);
+    tmpArray = NULL;
 
-	return list;
+    // Create sweeps tuple.
+    if(sweep == NULL) sweeps = PyTuple_Pack(3, Py_None, Py_None, dataList);
+    else sweeps = PyTuple_Pack(3, sweep, sweepValues, dataList);
+    if(sweeps == NULL)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: failed to create tuple with sweeps.\n");
+        goto failed;
+    }
+    Py_XDECREF(sweep);
+    Py_XDECREF(sweepValues);
+    Py_XDECREF(dataList);
 
-failed:	// Error occured. Close open file, relese memory and python references.
-	if (f)
-		fclose(f);
-	PyMem_Free(buf);
-	Py_XDECREF(date);
-	Py_XDECREF(title);
-	Py_XDECREF(scale);
-	PyMem_Free(name);
-	Py_XDECREF(sweep);
-	Py_XDECREF(sweepValues);
-	Py_XDECREF(dataList);
-	PyMem_Free(tmpArray);
-	PyMem_Free(faPtr);
-	Py_XDECREF(sweeps);
-	Py_XDECREF(tuple);
-	Py_XDECREF(list);
-	return Py_None;
+    // Prepare return tuple.
+    tuple = PyTuple_Pack(6, sweeps, scale, Py_None, title, date, Py_None);
+    if(tuple == NULL)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: failed to create tuple with read data.\n");
+        goto failed;
+    }
+    Py_XDECREF(date);
+    date = NULL;
+    Py_XDECREF(title);
+    title = NULL;
+    Py_XDECREF(scale);
+    scale = NULL;
+    Py_XDECREF(sweeps);
+    sweeps = NULL;
+
+    list = PyList_New(0);    // Create an empty list.
+    if(list == NULL)
+    {
+        if(debugMode)
+            fprintf(debugFile, "HSpiceRead: failed to create return list.\n");
+        goto failed;
+    }
+
+    num = PyList_Append(list, tuple);    // Insert tuple into return list.
+    if(num)
+    {
+        if(debugMode) fprintf(debugFile,
+                "HSpiceRead: failed to append tuple to return list.\n");
+        goto failed;
+    }
+    Py_XDECREF(tuple);
+
+    return list;
+
+failed:    // Error occured. Close open file, relese memory and python references.
+    if (f)
+        fclose(f);
+    PyMem_Free(buf);
+    Py_XDECREF(date);
+    Py_XDECREF(title);
+    Py_XDECREF(scale);
+    PyMem_Free(name);
+    Py_XDECREF(sweep);
+    Py_XDECREF(sweepValues);
+    Py_XDECREF(dataList);
+    PyMem_Free(tmpArray);
+    PyMem_Free(faPtr);
+    Py_XDECREF(sweeps);
+    Py_XDECREF(tuple);
+    Py_XDECREF(list);
+    return Py_None;
 }

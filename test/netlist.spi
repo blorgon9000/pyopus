@@ -1,0 +1,18 @@
+*test netlist
+
+.OPTION PARHIER=LOCAL   POST=1  RUNLVL=5
+
+.SUBCKT filt    n1      n2
+R0      n1      n2      10k
+C0      n2      0       100p
+R1      n2      0       100k
+.ENDS
+
+V0      n1      0       DC=0    AC=1    PULSE(0 1 0 10n 10n .5u 1u)
+X0      n1      n2      filt
+
+.DC     V0      0       5       1
+.AC     DEC     10      1       10MEG
+.TRAN   10n     2u
+
+.END

@@ -1,0 +1,2 @@
+hspice -i 2001.spi -o 2001
+hspice -i 9601.spi -o 9601

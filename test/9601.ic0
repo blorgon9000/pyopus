@@ -1,0 +1,15 @@
+* "simulator" "HSPICE" 
+* "version" "J-2014.09-SP2 64-BIT"
+* "format" "HSP"
+* "rundate" "16:10:18 03/24/2015 "
+* "netlist" "9601.spi "
+* "runtitle" "*test sim"
+* time =    0.            
+* temperature =   25.0000        
+*** BEGIN: Saved Operating Point ***                     
+.option 
++ gmindc=   1.0000p       
+.nodeset
++ n1 =   0.            
++ n2 =   0.            
+***   END: Saved Operating Point ***                     
